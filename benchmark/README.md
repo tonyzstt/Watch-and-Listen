@@ -11,6 +11,5 @@
 | InternVideo2_5_Chat_8B | https://huggingface.co/OpenGVLab/InternVideo2_5_Chat_8B | 8B |
 | LongVU_Qwen2_7B | https://huggingface.co/Vision-CAIR/LongVU_Qwen2_7B | 7B |
 | Chat-UniVi | https://huggingface.co/Chat-UniVi/Chat-UniVi | Not specified |
-| Apollo-LMMs-Apollo-7B-t32 | https://huggingface.co/GoodiesHere/Apollo-LMMs-Apollo-7B-t32 | 7B |
 
-Note: For models where the size is not explicitly mentioned in the model name, I've listed it as "Not specified". The actual size may be available in the model's documentation on the respective Hugging Face pages.
+Note: For models where the size is not explicitly mentioned in the model name, they're listed as "Not specified". The actual size may be available in the model's documentation on the respective Hugging Face pages.
