@@ -1,7 +1,5 @@
 data/train
 data/test
-data/environment-data.yml
-data/run.sh
 data/README.md
 
 *.zip
