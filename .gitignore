@@ -1,7 +1,4 @@
 data/train
 data/test
 
-benchmark/cogvlm2-llama3-caption/CogVideo
-benchmark/cogvlm2-llama3-caption/decord
-
 *.zip
