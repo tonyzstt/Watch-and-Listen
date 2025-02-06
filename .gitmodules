@@ -1,3 +1,15 @@
 [submodule "benchmark/LLaVA-NeXT-Video-7B"]
 	path = benchmark/LLaVA-NeXT-Video-7B
 	url = https://github.com/LLaVA-VL/LLaVA-NeXT
+[submodule "benchmark/InternVideo"]
+	path = benchmark/InternVideo
+	url = https://github.com/OpenGVLab/InternVideo.git
+[submodule "benchmark/LongVU"]
+	path = benchmark/LongVU
+	url = https://github.com/Vision-CAIR/LongVU.git
+[submodule "benchmark/Chat-UniVi"]
+	path = benchmark/Chat-UniVi
+	url = https://github.com/PKU-YuanGroup/Chat-UniVi.git
+[submodule "benchmark/CogVideo"]
+	path = benchmark/CogVideo
+	url = https://github.com/THUDM/CogVideo.git
