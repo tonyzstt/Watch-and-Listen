@@ -21,7 +21,6 @@ def compute_blue_score(reference_summary, candidate_summary):
 
     return bleu_score
 
-# Suppose we have the following reference summary (ground truth)
 def compute_similarity(reference_summary, candidate_summary):
     model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
