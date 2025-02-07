@@ -54,6 +54,10 @@ def get_dataset(csv_file, folder):
         text = row["text"]
         video_dir = os.path.join(folder, video_id)
         os.makedirs(video_dir, exist_ok=True)
+        
+        if os.path.exists(os.path.join(video_dir, "metadata.json")):
+            print(f"Skipping video {video_id} as it already exists.")
+            continue
 
         download_video(video_id, video_dir)
         save_metadata(video_id, text, start, end, video_dir)
