@@ -11,6 +11,10 @@ def download_video(video_id, save_dir):
     url = f"https://www.youtube.com/watch?v={video_id}"
     video_path = os.path.join(save_dir, "video.mp4")
 
+    if os.path.exists(video_path):
+        # print(f"Skipping {video_id}, video already exists.")
+        return video_path
+
     ydl_opts = {
         "format": "bestvideo+bestaudio/best", 
         "outtmpl": video_path,

@@ -57,8 +57,9 @@ tokenizer = AutoTokenizer.from_pretrained(
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     torch_dtype=TORCH_TYPE,
-    trust_remote_code=True
-).eval().to(DEVICE)
+    trust_remote_code=True,
+    load_in_4bit=True
+).eval() # .to(DEVICE)
 
 
 def predict(prompt, video_data, temperature):
@@ -99,7 +100,8 @@ def predict(prompt, video_data, temperature):
 def test():
     prompt = "Please describe this video in detail."
     temperature = 0.1
-    video_data = open('test.mp4', 'rb').read()
+    # video_data = open('test.mp4', 'rb').read()
+    video_data = open('/mnt/c/Users/ziqing/OneDrive - Stanford/Courses/2024Winter/CS229-Project/data/MMTrail/video_dataset/train/5aMUOrp_YbA/video.mp4.mkv', 'rb').read()
     response = predict(prompt, video_data, temperature)
     print(response)
 

@@ -17,7 +17,7 @@ dependencies:
   - einops
   - sse-starlette>=2.1.0
   - flask
-  - gunicorn
+  # - gunicorn
   - gevent
   - requests
   - gradio

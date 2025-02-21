@@ -3,7 +3,10 @@ data/test
 data/Youtube8M/test
 data/Youtube8M/train
 data/MMTrail/processed_data
+data/MMTrail/video_dataset
 data/train
 data/test
+results
 
 *.zip
+*.mp4
