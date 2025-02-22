@@ -1,35 +1,29 @@
-import numpy as np
 import os
 import json
-import tqdm
-from transformers import BitsAndBytesConfig, LlavaNextVideoForConditionalGeneration, LlavaNextVideoProcessor
+
 import torch
+import numpy as np
+from transformers import BitsAndBytesConfig, LlavaNextVideoForConditionalGeneration, LlavaNextVideoProcessor
 import PIL
+import tqdm
 
 
-        
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f'Using device: {device}')
+
 
 def get_dataset(root_dir_data: str, split: str, sample: int = None):
-    """
-    test/
-    ├── audios
-        ├── omK9uH2gfwg.wav
-        ├── _gMR55WZfdo.wav
-        ├── ...
-    ├── images
-        ├── omK9uH2gfwg
-            ├── 0000.jpg
-            ├── 0001.jpg
-            ├── ...
-        ├── _gMR55WZfdo
-            ├── 0000.jpg
-            ├── 0001.jpg
-            ├── ...
-        ├── ...
-    ├── metas
-        ├── omK9uH2gfwg.json
-        ├── _gMR55WZfdo.json
-    """
+    '''
+    Get the dataset from the given root directory.
+    
+    Args:
+        root_dir_data (str): Root directory of the dataset.
+        split (str): Split of the dataset.
+        sample (int): Number of frames to sample from each video.
+        
+    Returns:
+        Dict[str, Dict[str, Any]]: Dataset.
+    '''
     
     def get_captions_meta(root_dir_data, split, id):
         '''
@@ -56,6 +50,8 @@ def get_dataset(root_dir_data: str, split: str, sample: int = None):
                 'polish_caption': meta['original_metadata']['polish_caption']
             }
             
+            print("Successfully loaded captions, id: ", id)
+            
             return captions
     
     
@@ -78,16 +74,23 @@ def get_dataset(root_dir_data: str, split: str, sample: int = None):
             return None
         for image_file in os.listdir(images_dir):
             # read jpg image
-            image = PIL.Image.open(os.path.join(images_dir, image_file), format="rgb24")
+            image = PIL.Image.open(os.path.join(images_dir, image_file))
             frames.append(np.array(image))
+            
+        if len(frames) == 0:
+            return None
+        
         frames = np.stack(frames)
-        print(frames.shape)
         
         if sample is not None:
             # sample "sample" frames from the video
             indices = np.linspace(0, frames.shape[0] - 1, sample).astype(int)
             frames = frames[indices]
+            
+        # put to device
+        frames = torch.tensor(frames).to(device)
         
+        print("Successfully loaded frames, id: ", id)
         return frames
     
     
@@ -99,15 +102,21 @@ def get_dataset(root_dir_data: str, split: str, sample: int = None):
         video_ids = json.load(f)
     
     dataset = {}
-    for id in video_ids:
-        captions = get_captions_meta(root_dir_data, id)
+    print(f'Loading {len(video_ids)} videos')
+    for id in tqdm.tqdm(video_ids):
         images = load_frames(root_dir_data, split, id, sample=sample)
+        if images is None:
+            continue
+        
+        captions = get_captions_meta(root_dir_data, split, id)
         # TODO: video and audio
-        if captions is not None and images is not None:
+        if captions is not None:
             dataset[id] = {
                 'captions': captions,
                 'images': images
             }
+            
+    print(f'Loaded {len(dataset)} videos')
             
     return dataset
 
@@ -127,12 +136,14 @@ def load_llava_next_model(model_path: str):
         bnb_4bit_compute_dtype=torch.float16
     )
 
-    processor = LlavaNextVideoProcessor.from_pretrained("llava-hf/LLaVA-NeXT-Video-7B-hf")
+    processor = LlavaNextVideoProcessor.from_pretrained(model_path)
     model = LlavaNextVideoForConditionalGeneration.from_pretrained(
-        "llava-hf/LLaVA-NeXT-Video-7B-hf",
+        model_path,
         quantization_config=quantization_config,
         device_map='auto'
     )
+    
+    model.to(device)
     
     return model, processor
 
@@ -167,24 +178,33 @@ def generate_caption_video(model, processor, dataset):
     
     for id in dataset:
         inputs = processor([prompt], videos=[dataset[id]['images']], padding=True, return_tensors="pt").to(model.device)
-        generate_kwargs = {"max_new_tokens": 100, "do_sample": True, "top_p": 0.9}
-        outputs = model.generate(**inputs, **generate_kwargs)
-        generated_text = processor.decode(outputs[0], skip_special_tokens=True)
+        generate_kwargs = {"max_new_tokens": 50, "do_sample": True, "top_p": 0.9}
+        output = model.generate(**inputs, **generate_kwargs)
+        generated_text = processor.decode(output[0], skip_special_tokens=True)
+        # get only output from the assistant
+        generated_text = generated_text.split('ASSISTANT: ')[-1]
         print(generated_text)
         outputs[id] = generated_text
         
     return outputs
+
+
+
     
 
 def main():
-    root_dir_data = 'MMTrail'
+    root_dir_data = '/home/saberwu2002/disk-data/data/MMTrail_processed'
     split = 'test'
     sample = 30
     dataset = get_dataset(root_dir_data, split, sample)
-    model_path = 'llava-hf/LLaVA-NeXT-Video-7B-hf'
+    model_path = '/home/saberwu2002/disk-data/checkpoints/llava-next-video-7b-hf'
     model, processor = load_llava_next_model(model_path)
     captions = generate_caption_video(model, processor, dataset)
     
     # save to json
     with open('captions.json', 'w') as f:
         json.dump(captions, f)
+        
+        
+if __name__ == '__main__':
+    main()

@@ -8,5 +8,7 @@ data/train
 data/test
 results
 
+benchmark/llava-next-caption/*.json
+
 *.zip
 *.mp4
