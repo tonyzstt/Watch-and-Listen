@@ -1,4 +1,4 @@
-name: cs229-cogvlm2-llama3-caption
+name: cogvlm2-llama3-caption
 channels:
   - conda-forge
   - pytorch
@@ -22,10 +22,9 @@ dependencies:
   - requests
   - gradio
   - pip:
-      # - decord>=0.6.0
+      - decord>=0.6.0
       - torch==2.1.0
       - torchvision==0.16.0
       - huggingface-hub>=0.23.0
       - chainlit>=1.0
       - xformers
-# prefix: /home/sabrina/anaconda3/envs/cs229-cogvlm2-llama3-caption

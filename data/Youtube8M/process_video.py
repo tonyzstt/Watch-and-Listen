@@ -94,5 +94,5 @@ def process_videos(base_folder):
     print("Processing complete!")
 
 if __name__ == "__main__":
-    process_videos("train")
+    # process_videos("train")
     process_videos("test")
