@@ -63,5 +63,5 @@ def get_dataset(csv_file, folder):
         save_metadata(video_id, text, start, end, video_dir)
 
 if __name__ == "__main__":
-    get_dataset("train.csv", "train/videos")
+    # get_dataset("train.csv", "train/videos")
     get_dataset("test.csv", "test/videos")
