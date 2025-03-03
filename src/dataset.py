@@ -197,4 +197,11 @@ class LazySupervisedDataset(Dataset):
             has_audio='audio' in sources
         )
         
+        if 'image' in sources:
+            data_dict['image'] = image
+        if 'audio' in sources:
+            data_dict['audio'] = audio
+            
+        return data_dict
+        
         
