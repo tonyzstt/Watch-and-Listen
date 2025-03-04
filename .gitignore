@@ -9,6 +9,7 @@ data/test
 results
 
 benchmark/llava-next-caption/*.json
+local_data
 
 *.zip
 *.mp4
