@@ -9,6 +9,7 @@ data/test
 results
 
 benchmark/llava-next-caption/*.json
+preprocess/*.ipynb
 local_data
 
 *.zip
