@@ -1,6 +1,8 @@
 import os
 import json
 import copy
+import torch
+import soundfile as sf
 from typing import Optional, List, Dict
 from dataclasses import dataclass, field
 
@@ -179,16 +181,17 @@ class LazySupervisedDataset(Dataset):
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
                 image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
-                image = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                image = image_processor.preprocess(image)['pixel_values'][0]
             else:
-                image = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                image = image_processor.preprocess(image)['pixel_values'][0]
                 
         if 'audio' in sources:
             audio_file_name = sources['audio']
             audio_folder = self.data_args.audio_folder
             audio_processor = self.data_args.audio_processor
-            # TODO: Implement audio processing
-            audio = None
+
+            wav, sample_rate_ = sf.read(os.path.join(audio_folder, audio_file_name), dtype='float32', always_2d=True)
+            audio = audio_processor.preprocess(wav, sample_rate_)['audio_wav']
             
         data_dict = preprocess(
             sources,
