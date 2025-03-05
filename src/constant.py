@@ -1,0 +1,20 @@
+# Model Constants
+MAX_IMAGE_LENGTH = 64
+IGNORE_INDEX = -100
+IMAGE_TOKEN_INDEX = -200
+AUDIO_TOKEN_INDEX = -300
+
+# Image and Video Tokens
+DEFAULT_IMAGE_TOKEN = "<image>"
+DEFAULT_VIDEO_TOKEN = "<video>"
+DEFAULT_IM_START_TOKEN = "<im_start>"
+DEFAULT_IM_END_TOKEN = "<im_end>"
+DEFAULT_VID_START_TOKEN = "<vid_start>"
+DEFAULT_VID_END_TOKEN = "<vid_end>"
+DEFAULT_BOX_START_TOKEN = "<box_start>"
+DEFAULT_BOX_END_TOKEN = "<box_end>"
+
+# Audio Tokens
+DEFAULT_AUDIO_TOKEN = "<audio>"
+DEFAULT_AUDIO_START_TOKEN = "<audio_start>"
+DEFAULT_AUDIO_END_TOKEN = "<audio_end>"
