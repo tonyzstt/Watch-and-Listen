@@ -1,3 +1,5 @@
+**/__pycache__/
+
 data/train
 data/test
 data/Youtube8M/test
