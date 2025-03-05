@@ -44,4 +44,4 @@ class ImageEvalProcessor(BaseProcessor):
         )
 
     def preprocess(self, item):
-        return {'pixel_values': [self.transform(item)]}
+        return self.transform(item)

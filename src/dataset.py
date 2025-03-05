@@ -5,6 +5,7 @@ from typing import Optional, List, Dict
 from dataclasses import dataclass, field
 
 import torch
+import torch.nn as nn
 import psutil
 from torch.utils.data import Dataset
 import transformers
@@ -14,6 +15,8 @@ from PIL import Image
 
 from conversation import get_conv_template
 from constant import *
+from vision.processor import BaseProcessor, ImageEvalProcessor
+from audio.mert_encoder import MERTEncoder
 
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 CONV_TEMPLATE_NAME = 'vicuna_v1.1'
@@ -33,14 +36,13 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    meta_file_path: str = field(default=None, metadata={"help": "Path to the meta data json file."})
+    data_folder: str = field(default=None, metadata={"help": "Path to the data folder."})
     is_multimodal: bool = field(default=False)
     has_video: bool = field(default=False)
     has_image: bool = field(default=False)
     has_audio: bool = field(default=False)
-    video_folder: str = field(default=None)
-    image_folder: str = field(default=None)
-    audio_folder: str = field(default=None)
+    image_aspect_ratio: str = field(default=None, metadata={"help": "Aspect ratio of the image."})
 
 
 @dataclass
@@ -236,17 +238,26 @@ def preprocess(
 class LazySupervisedDataset(Dataset):
     """Dataset for pretraining for multimodal feature alignment."""
     
-    def __init__(self, data_path: str,
+    def __init__(self, meta_data_path: str,
                  tokenizer: transformers.PreTrainedTokenizer,
+                 image_processor: Optional[BaseProcessor],
+                 audio_processor: Optional[nn.Module],
                  data_args: DataArguments):
         super(LazySupervisedDataset, self).__init__()
         
         print("Formatting inputs...Skip in lazy mode")
-        raw_data : List[dict] = json.load(open(data_path, 'r'))
+        raw_data : List[dict] = json.load(open(meta_data_path, 'r'))
         
         self.raw_data = raw_data
         self.tokenizer = tokenizer
+        self.image_processor = image_processor
+        self.audio_processor = audio_processor
         self.data_args = data_args
+        
+        if self.data_args.has_image:
+            assert self.image_processor is not None, "Image processor not found"
+        if self.data_args.has_audio:
+            assert self.audio_processor is not None, "Audio processor not found"
         # self.cached_data_dict = {}
         
     def __len__(self):
@@ -268,39 +279,50 @@ class LazySupervisedDataset(Dataset):
         
         # TODO: consider add a 'video' section that load video information, and returns the number of visual tokens
         
+        images = []
         if data_args.has_image:
             assert 'images_folder' in raw_data, "Image folder not found in data"
             
-            image_file_name = raw_data['images_folder']
-            image_folder = self.data_args.image_folder
-            image_processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file_name)).convert('RGB')
+            root_folder = self.data_args.data_folder
+            image_folder = os.path.join(root_folder, raw_data['images_folder'])
+            image_processor = self.image_processor
             
-            # Padding and processing image
-            if self.data_args.image_aspect_ratio == 'pad':
-                def expand2square(pil_img, background_color):
-                    width, height = pil_img.size
-                    if width == height:
-                        return pil_img
-                    elif width > height:
-                        result = Image.new(pil_img.mode, (width, width), background_color)
-                        result.paste(pil_img, (0, (width - height) // 2))
-                        return result
-                    else:
-                        result = Image.new(pil_img.mode, (height, height), background_color)
-                        result.paste(pil_img, ((height - width) // 2, 0))
-                        return result
-                image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
-                image = image_processor.preprocess(image, return_tensors='pt')
+            if not os.path.exists(image_folder):
+                print(f"Image folder {image_folder} not found")
             else:
-                image = image_processor.preprocess(image, return_tensors='pt')
+                # all images in the folder
+                for image_file_name in os.listdir(image_folder):
+                    image_fp = os.path.join(image_folder, image_file_name)
+                    image = Image.open(image_fp).convert('RGB')
+                
+                    # Padding and processing image
+                    if self.data_args.image_aspect_ratio == 'pad':
+                        def expand2square(pil_img, background_color):
+                            width, height = pil_img.size
+                            if width == height:
+                                return pil_img
+                            elif width > height:
+                                result = Image.new(pil_img.mode, (width, width), background_color)
+                                result.paste(pil_img, (0, (width - height) // 2))
+                                return result
+                            else:
+                                result = Image.new(pil_img.mode, (height, height), background_color)
+                                result.paste(pil_img, ((height - width) // 2, 0))
+                                return result
+                        # FIXME: image_processor.image_mean is not defined
+                        image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
+                        image = image_processor.preprocess(image)
+                    else:
+                        image = image_processor.preprocess(image)
+                        
+                    images.append(image)
                 
         if data_args.has_audio:
             assert 'audio_file' in raw_data, "Audio file not found in data"
             
             audio_file_name = raw_data['audio_file']
             audio_folder = self.data_args.audio_folder
-            audio_processor = self.data_args.audio_processor
+            audio_processor = self.audio_processor
             audio_file_name = os.path.join(audio_folder, audio_file_name)
             audio = audio_processor.get_hidden_states(audio_file_name)
         
@@ -312,7 +334,7 @@ class LazySupervisedDataset(Dataset):
         )
         
         if data_args.has_image:
-            data_dict['image'] = image
+            data_dict['images'] = images
         if data_args.has_audio:
             data_dict['audio'] = audio
             
@@ -321,11 +343,15 @@ class LazySupervisedDataset(Dataset):
 
 def get_dataset(
     data_args: DataArguments,
-    tokenizer: transformers.PreTrainedTokenizer
+    tokenizer: transformers.PreTrainedTokenizer,
+    image_processor: Optional[BaseProcessor],
+    audio_processor: Optional[nn.Module]
 ) -> LazySupervisedDataset:
     return LazySupervisedDataset(
-        data_args.data_path,
+        data_args.meta_file_path,
         tokenizer,
+        image_processor,
+        audio_processor,
         data_args
     )
     
@@ -337,17 +363,26 @@ if __name__ == "__main__":
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(
         args = [
             "--model_name_or_path", "/home/saberwu2002/CS229-Project/hf_ckp/vicuna-7b-v1.5",
-            "--data_path", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/metas_video_convs.json",
+            "--meta_file_path", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/metas_video_convs.json",
             "--output_dir", "/home/saberwu2002/CS229-Project/output/",
-            "--has_video", "--has_image", "--has_audio",
-            "--video_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/videos/",
-            "--image_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/images/",
-            "--audio_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/audio/"
+            "--has_video",
+            "--has_image",
+            # "--has_audio",
+            "--data_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/"
         ]
     )
     
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    dataset = get_dataset(data_args, tokenizer)
-    print(dataset[0])
-    print(dataset[1])
+    image_processor = ImageEvalProcessor()
+    # audio_processor = MERTEncoder() # TODO: fill in arguments
+    audio_processor = None
+    dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
+    
+    data_0 = dataset[0]
+    print("input_ids:", data_0['input_ids'])
+    print("labels:", data_0['labels'])
+    print("attention_mask:", data_0['attention_mask'])
+    print("images.size():", len(data_0['images']))
+    # print("audio.size():", len(data_0['audio']))
+    print("Done!")
     
