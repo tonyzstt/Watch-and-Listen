@@ -11,6 +11,8 @@ import transformers
 from transformers.trainer_pt_utils import LabelSmoother
 from PIL import Image
 
+from constant import *
+
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 
@@ -27,13 +29,93 @@ class DataArguments:
 
 def preprocess_multimodal(
     sources: List[Dict[str, str]],
-    data_args: DataArguments
+    data_args: DataArguments,
+    image_token_num=1,  # For number of image tokens
+    audio_token_num=1   # For number of audio tokens
 ) -> Dict:
+    """Prepare input token template with multimodal placeholder"""
     is_multimodal = data_args.is_multimodal
     if not is_multimodal:
         return sources
     
-    # TODO: Implement multimodal preprocessing
+    for source in sources:
+        for sentence in source:
+            if (DEFAULT_IMAGE_TOKEN in sentence['value'] or 
+                DEFAULT_VIDEO_TOKEN in sentence['value'] or 
+                DEFAULT_AUDIO_TOKEN in sentence['value']):
+                
+                # Image Tokens
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_IMAGE_TOKEN + '\n', DEFAULT_IMAGE_TOKEN
+                ).strip()
+                sentence['value'] = sentence['value'].replace(
+                    '\n' + DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN
+                ).strip()
+                if sentence['value'].endswith(DEFAULT_IMAGE_TOKEN):
+                    IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
+                    sentence['value'] = sentence['value'].replace(
+                        DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM, ''
+                    ).strip()
+                    sentence['value'] = DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM + sentence['value']
+                    sentence['value'] = sentence['value'].strip()
+                
+                # Video Tokens
+                if sentence['value'].endswith(DEFAULT_VIDEO_TOKEN):
+                    VIDEO_TOKEN_NUM = sentence['value'].count(DEFAULT_VIDEO_TOKEN)
+                    sentence['value'] = sentence['value'].replace(
+                        DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM, ''
+                    ).strip()
+                    sentence['value'] = DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM + sentence['value']
+                    sentence['value'] = sentence['value'].strip()
+                
+                # Audio Tokens
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_AUDIO_TOKEN + '\n', DEFAULT_AUDIO_TOKEN
+                ).strip()
+                sentence['value'] = sentence['value'].replace(
+                    '\n' + DEFAULT_AUDIO_TOKEN, DEFAULT_AUDIO_TOKEN
+                ).strip()
+                if sentence['value'].endswith(DEFAULT_AUDIO_TOKEN):
+                    AUDIO_TOKEN_NUM = sentence['value'].count(DEFAULT_AUDIO_TOKEN)
+                    sentence['value'] = sentence['value'].replace(
+                        DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM, ''
+                    ).strip()
+                    sentence['value'] = DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM + sentence['value']
+                    sentence['value'] = sentence['value'].strip()
+
+                # TODO: conversation
+                # if "mmtag" in conversation_lib.default_conversation.version:
+                #     sentence['value'] = sentence['value'].replace(
+                #         DEFAULT_IMAGE_TOKEN,
+                #         '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>'
+                #     )
+                
+                IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
+                if IMAGE_TOKEN_NUM > MAX_IMAGE_LENGTH:
+                    sentence['value'] = sentence['value'].replace(
+                        DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM,
+                        DEFAULT_IMAGE_TOKEN * MAX_IMAGE_LENGTH
+                    ).strip()
+
+            # Prepare replacement tokens for image, video, and audio
+            replace_token = DEFAULT_IMAGE_TOKEN
+            vid_replace_token = DEFAULT_IMAGE_TOKEN * image_token_num
+            aud_replace_token = DEFAULT_AUDIO_TOKEN * audio_token_num
+            if data_args.mm_use_im_start_end:
+                replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+                vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_VID_END_TOKEN
+                aud_replace_token = DEFAULT_AUDIO_START_TOKEN + aud_replace_token + DEFAULT_AUDIO_END_TOKEN
+
+            sentence["value"] = sentence["value"].replace(
+                DEFAULT_IMAGE_TOKEN, replace_token + '\n'
+            )
+            sentence["value"] = sentence["value"].replace(
+                DEFAULT_VIDEO_TOKEN, vid_replace_token + '\n'
+            )
+            sentence["value"] = sentence["value"].replace(
+                DEFAULT_AUDIO_TOKEN, aud_replace_token + '\n'
+            )
+            sentence['value'] = sentence['value'].replace('\n\n', '\n')
     return sources
     
 def preprocess(
@@ -155,11 +237,13 @@ class LazySupervisedDataset(Dataset):
             return self.cached_data_dict[idx]
         
         # FIXME: Currently there is no indicative token for multimodal data
+        # TODO: This should happens after the processing steps below since we need to know the length of image/audio dataset
         sources = preprocess_multimodal(
             copy.deepcopy([self.raw_data[idx]['conversations']]),
             self.data_args
         )
         
+        # TODO: consider add a 'video' section that load video information, and returns the number of visual tokens
         if 'image' in sources:
             image_file_name = sources['image']
             image_folder = self.data_args.image_folder
