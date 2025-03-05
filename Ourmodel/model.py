@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 
-# from audio.wav2vec_encoder import AudioEncoder
-from audio.mert_encoder import MERTEncoder
+from audio.wav2vec_encoder import AudioEncoder
 from vision.clip_encoder import CLIPVisionTower
 from vision.vision_projection import build_vision_projector
 from audio.audio_projection import build_audio_projector
@@ -13,8 +12,7 @@ class VideoSummaryModel(nn.Module):
     def __init__(
         self,
         clip_model_name="openai/clip-vit-base-patch32",
-        # audio_model_name="facebook/wav2vec2-base-960h",
-        audio_model_name="m-a-p/MERT-v1-95M",
+        audio_model_name="facebook/wav2vec2-base-960h",
         vision_config_params=None,
         audio_config_params=None
     ):
@@ -33,7 +31,7 @@ class VideoSummaryModel(nn.Module):
             }
         
         self.clip_vision_tower = CLIPVisionTower(clip_model_name)
-        self.audio_encoder = MERTEncoder(audio_model_name)
+        self.audio_encoder = AudioEncoder(audio_model_name)
         self.vision_projector = build_vision_projector(
             VisionProjectorConfig(**vision_config_params)
         )
@@ -62,8 +60,8 @@ class VideoSummaryModel(nn.Module):
 
 if __name__ == "__main__":
 
-    video_path = "../data/MMTrail/processed_data/test/output_videos/-2x2NMwBDzE.mp4"
-    audio_path = "../data/MMTrail/processed_data/test/audios/-2x2NMwBDzE.wav"
+    video_path = "/home/tonyzst/Desktop/CS229-Project/data/MMTrail/test/videos/2x2NMwBDzE.mp4"
+    audio_path = "/home/tonyzst/Desktop/CS229-Project/data/MMTrail/test/audios/-2x2NMwBDzE.wav"
     
     patch_images, slice_len, video_mask, audio_rate, audio_data = _get_rawvideo_dec(
         video_path, audio_path=audio_path

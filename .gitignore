@@ -1,6 +1,5 @@
 data/train
 data/test
-data
 toymodel/ckpts
 
 *.zip
