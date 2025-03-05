@@ -367,15 +367,14 @@ if __name__ == "__main__":
             "--output_dir", "/home/saberwu2002/CS229-Project/output/",
             "--has_video",
             "--has_image",
-            # "--has_audio",
+            "--has_audio",
             "--data_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/"
         ]
     )
     
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     image_processor = ImageEvalProcessor()
-    # audio_processor = MERTEncoder() # TODO: fill in arguments
-    audio_processor = None
+    audio_processor = MERTEncoder()
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
     
     data_0 = dataset[0]
@@ -383,6 +382,6 @@ if __name__ == "__main__":
     print("labels:", data_0['labels'])
     print("attention_mask:", data_0['attention_mask'])
     print("images.size():", len(data_0['images']))
-    # print("audio.size():", len(data_0['audio']))
+    print("audio.size():", len(data_0['audio']))
     print("Done!")
     

@@ -1,4 +1,3 @@
-import os
 import torch
 from torch import nn
 import torchaudio
@@ -7,23 +6,23 @@ from transformers import Wav2Vec2FeatureExtractor, AutoModel
 
 
 class MERTEncoder(nn.Module):
-    def __init__(self, model_name: str, processor_name: str, audio_folder: str, sampling_rate: int = None):
+    def __init__(self, model_name: str = "m-a-p/MERT-v1-95M", processor_name: str = "m-a-p/MERT-v1-95M", sampling_rate: int = None):
         # Initialize the processor and model
         self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
         self.processor = Wav2Vec2FeatureExtractor.from_pretrained(processor_name, trust_remote_code=True)
-        self.audio_folder = audio_folder
-        self.sampling_rate = sampling_rate or self.processor.sampling_rate  # Default to processor's sampling rate
+        self.sampling_rate = self.processor.sampling_rate  # Default to processor's sampling rate
+        if sampling_rate:
+            self.sampling_rate = sampling_rate
     
     def load_audio(self, audio_file_name: str):
         # Load the audio file from the given path
-        audio_file_path = os.path.join(self.audio_folder, audio_file_name)
-        waveform, sampling_rate = torchaudio.load(audio_file_path)
+        waveform, sampling_rate = torchaudio.load(audio_file_name)
         return waveform, sampling_rate
     
     def resample_audio(self, waveform: torch.Tensor, original_sampling_rate: int):
         # Resample the audio if necessary
         if original_sampling_rate != self.sampling_rate:
-            print(f'Resampling from {original_sampling_rate} to {self.sampling_rate}')
+            # print(f'Resampling from {original_sampling_rate} to {self.sampling_rate}')
             resampler = T.Resample(original_sampling_rate, self.sampling_rate)
             waveform = resampler(waveform)
         return waveform
