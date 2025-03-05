@@ -1,6 +1,7 @@
 import json
 import os
 import nltk
+import bert_score
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from sentence_transformers import SentenceTransformer, util
 
@@ -30,6 +31,15 @@ def compute_similarity(reference_summary, candidate_summary):
     embedding2 = model.encode(candidate_summary, convert_to_tensor=True)
     similarity = util.cos_sim(embedding1, embedding2)
     return similarity.item()
+
+def compute_bert_score(reference_summary, candidate_summary, lang='en'):
+
+    references = [reference_summary]
+    candidates = [candidate_summary]
+    
+    _, _, F1 = bert_score.score(candidates, references, lang=lang, verbose=True)
+    
+    return F1.item()
 
 
 def load_metadata_for_video(metadata_folder, video_filename):
@@ -63,12 +73,14 @@ def evaluate_titles(metadata_file, output_file):
         if reference_title:
             bleu_score = compute_bleu_score(reference_title, generated_title)
             similarity_score = compute_similarity(reference_title, generated_title)
+            bert_score = compute_bert_score(reference_title, generated_title)
 
             results[video_filename] = {
                 "reference_title": reference_title,
                 "generated_title": generated_title,
                 "bleu_score": bleu_score,
-                "similarity_score": similarity_score
+                "similarity_score": similarity_score,
+                "bert_score": bert_score
             }
         else:
             results[video_filename] = {
