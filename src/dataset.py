@@ -187,9 +187,9 @@ class LazySupervisedDataset(Dataset):
             audio_file_name = sources['audio']
             audio_folder = self.data_args.audio_folder
             audio_processor = self.data_args.audio_processor
-            # TODO: Implement audio processing
-            audio = None
-            
+            audio_file_name = os.path.join(audio_folder, audio_file_name)
+            audio = audio_processor.get_hidden_states(audio_file_name)
+        
         data_dict = preprocess(
             sources,
             self.tokenizer,
