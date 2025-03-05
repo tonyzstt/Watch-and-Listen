@@ -1,4 +1,3 @@
-import re
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 
@@ -26,7 +25,7 @@ class ImageTrainProcessor(BaseProcessor):
             ]
         )
 
-    def preprocess(self, item, return_tensors):
+    def preprocess(self, item):
         return {'pixel_values': [self.transform(item)]}
     
 
@@ -44,5 +43,5 @@ class ImageEvalProcessor(BaseProcessor):
             ]
         )
 
-    def preprocess(self, item, return_tensors):
+    def preprocess(self, item):
         return {'pixel_values': [self.transform(item)]}
