@@ -13,6 +13,8 @@ from vision.vision_projection import build_vision_projector
 from audio.audio_projection import build_audio_projector
 from config.config import VisionProjectorConfig, AudioProjectorConfig
 from peft import LoraConfig, get_peft_model
+from audio.wav2vec_encoder import AudioEncoder
+from vision.clip_encoder import CLIPVisionTower
 
 def print_gpu_memory_usage(device=0):
     allocated = torch.cuda.memory_allocated(device) / 1024**2  
@@ -185,6 +187,7 @@ class MultiModalLlama(nn.Module):
             attention_mask=attention_mask,
             labels=labels,
         )
+        print_gpu_memory_usage()
         return outputs
 
     @property
@@ -222,19 +225,25 @@ def main():
     model = MultiModalLlama(llama_model_name=llama_model_name)
     dataset = MultiModalDataset(dummy_data, tokenizer, max_length=256)
 
+    # clip_model_name="openai/clip-vit-base-patch32"
+    # audio_model_name="facebook/wav2vec2-base-960h"
+    # clip_vision_tower = CLIPVisionTower(clip_model_name)
+    # audio_encoder = AudioEncoder(audio_model_name)
+
     # Stage 1 of training
     model.freeze_llama()                 
     model.unfreeze_projection_layers()    
     training_args_stage1 = TrainingArguments(
         output_dir="./llama_finetuned_stage1",
         per_device_train_batch_size=8,
-        num_train_epochs=3,
+        num_train_epochs=20,
         learning_rate=2e-5,
         logging_steps=10,
         save_steps=100,
         fp16=True,
         save_safetensors=False,
         remove_unused_columns=False,  
+        deepspeed="deepspeed.json"
     )
     trainer_stage1 = Trainer(
         model=model,
@@ -251,13 +260,14 @@ def main():
     training_args_stage2 = TrainingArguments(
         output_dir="./llama_finetuned_stage2",
         per_device_train_batch_size=8,
-        num_train_epochs=3,
+        num_train_epochs=20,
         learning_rate=1e-5,
         logging_steps=10,
         save_steps=100,
         fp16=True,
         save_safetensors=False,
         remove_unused_columns=False,
+        deepspeed="deepspeed.json"
     )
     trainer_stage2 = Trainer(
         model=model,
