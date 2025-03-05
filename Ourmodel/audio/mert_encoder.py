@@ -1,10 +1,12 @@
+# from transformers import Wav2Vec2Processor
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Config, Wav2Vec2Processor, Wav2Vec2Model
+from transformers import AutoModel
 import torch
-import torch.nn as nn
-from transformers import Wav2Vec2Model, Wav2Vec2Processor, Wav2Vec2Config
+from torch import nn
+import torchaudio.transforms as T
 
-
-class AudioEncoder(nn.Module):
-    def __init__(self, audio_tower, args=None, delay_load=False):
+class MERTEncoder(nn.Module):
+    def __init__(self, audio_tower='m-a-p/MERT-v1-95M', args=None, delay_load=False):
         super().__init__()
 
         self.is_loaded = False
@@ -21,36 +23,54 @@ class AudioEncoder(nn.Module):
             self.cfg_only = Wav2Vec2Config.from_pretrained(self.audio_tower_name)
 
     def load_model(self):
-        self.audio_processor = Wav2Vec2Processor.from_pretrained(self.audio_tower_name)
+        # self.audio_processor = Wav2Vec2Processor.from_pretrained(self.audio_tower_name)
         self.audio_tower = Wav2Vec2Model.from_pretrained(self.audio_tower_name)
         self.audio_tower.requires_grad_(False) 
         self.is_loaded = True
+        # self.audio_tower = AutoModel.from_pretrained(audio_tower_name, trust_remote_code=True)
+        self.audio_processor = Wav2Vec2FeatureExtractor.from_pretrained(self.audio_tower_name,trust_remote_code=True)
+        
 
     def feature_select(self, audio_forward_outs):
         """
         Select features from the specified transformer layer.
         """
-        audio_features = audio_forward_outs.hidden_states[self.select_layer]  
+        audio_features = audio_forward_outs.hidden_states[self.select_layer]
         return audio_features
 
+    def preprocess_audio(self, waveform, sample_rate):
+        """
+        Converts raw waveform into a spectrogram required for AST.
+        """
+        transform = T.MelSpectrogram(
+            sample_rate=sample_rate,
+            n_mels=128,
+            n_fft=1024,
+            hop_length=512
+        )
+        mel_spectrogram = transform(waveform)
+        return mel_spectrogram
+
     @torch.no_grad()
-    def forward(self, audio_waveforms):
+    def forward(self, audio_waveforms, sample_rate=16000):
         """
-        Process audio waveforms and extract features.
+        Process audio waveforms and extract general audio features.
         """
-        if isinstance(audio_waveforms, list):  
+        if isinstance(audio_waveforms, list): 
             audio_features = []
             for waveform in audio_waveforms:
-                inputs = self.audio_processor(waveform, return_tensors="pt", sampling_rate=16000)
+                mel_spec = self.preprocess_audio(waveform, sample_rate)
+                inputs = self.audio_processor(mel_spec, return_tensors="pt")
                 inputs = {k: v.to(device=self.device, dtype=self.dtype) for k, v in inputs.items()}
-                
+
                 audio_forward_out = self.audio_tower(**inputs, output_hidden_states=True)
                 audio_feature = self.feature_select(audio_forward_out).to(waveform.dtype)
                 audio_features.append(audio_feature)
         else:
-            inputs = self.audio_processor(audio_waveforms, return_tensors="pt", sampling_rate=16000)
+            mel_spec = self.preprocess_audio(audio_waveforms, sample_rate)
+            inputs = self.audio_processor(mel_spec, return_tensors="pt")
             inputs = {k: v.to(device=self.device, dtype=self.dtype) for k, v in inputs.items()}
-            
+
             audio_forward_outs = self.audio_tower(**inputs, output_hidden_states=True)
             audio_features = self.feature_select(audio_forward_outs).to(audio_waveforms.dtype)
 
@@ -70,11 +90,8 @@ class AudioEncoder(nn.Module):
 
     @property
     def config(self):
-        if self.is_loaded:
-            return self.audio_tower.config
-        else:
-            return self.cfg_only
+        return self.audio_tower.config if self.is_loaded else None
 
     @property
     def hidden_size(self):
-        return self.config.hidden_size
+        return self.audio_tower.config.hidden_size
