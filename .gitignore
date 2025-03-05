@@ -10,6 +10,7 @@ results
 
 benchmark/llava-next-caption/*.json
 preprocess/*.ipynb
+hf_ckp
 local_data
 
 *.zip
