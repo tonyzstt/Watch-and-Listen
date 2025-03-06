@@ -46,6 +46,7 @@ class DataArguments:
     has_image: bool = field(default=False)
     has_audio: bool = field(default=False)
     image_aspect_ratio: str = field(default=None, metadata={"help": "Aspect ratio of the image."})
+    mm_use_im_start_end: bool = field(default=False)
 
 
 @dataclass
@@ -54,7 +55,7 @@ class TrainingArguments(transformers.TrainingArguments):
 
 
 def preprocess_multimodal(
-    sources: List[Dict[str, str]],
+    source: List[Dict[str, str]],
     data_args: DataArguments,
     image_token_num=1,  # For number of image tokens
     audio_token_num=1   # For number of audio tokens
@@ -62,87 +63,86 @@ def preprocess_multimodal(
     """Prepare input token template with multimodal placeholder"""
     is_multimodal = data_args.is_multimodal
     if not is_multimodal:
-        return sources
+        return source
     
-    for source in sources:
-        for sentence in source:
-            if (DEFAULT_IMAGE_TOKEN in sentence['value'] or 
-                DEFAULT_VIDEO_TOKEN in sentence['value'] or 
-                DEFAULT_AUDIO_TOKEN in sentence['value']):
-                
-                # Image Tokens
-                sentence['value'] = sentence['value'].replace(
-                    DEFAULT_IMAGE_TOKEN + '\n', DEFAULT_IMAGE_TOKEN
-                ).strip()
-                sentence['value'] = sentence['value'].replace(
-                    '\n' + DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN
-                ).strip()
-                if sentence['value'].endswith(DEFAULT_IMAGE_TOKEN):
-                    IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
-                    sentence['value'] = sentence['value'].replace(
-                        DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM, ''
-                    ).strip()
-                    sentence['value'] = DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM + sentence['value']
-                    sentence['value'] = sentence['value'].strip()
-                
-                # Video Tokens
-                if sentence['value'].endswith(DEFAULT_VIDEO_TOKEN):
-                    VIDEO_TOKEN_NUM = sentence['value'].count(DEFAULT_VIDEO_TOKEN)
-                    sentence['value'] = sentence['value'].replace(
-                        DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM, ''
-                    ).strip()
-                    sentence['value'] = DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM + sentence['value']
-                    sentence['value'] = sentence['value'].strip()
-                
-                # Audio Tokens
-                sentence['value'] = sentence['value'].replace(
-                    DEFAULT_AUDIO_TOKEN + '\n', DEFAULT_AUDIO_TOKEN
-                ).strip()
-                sentence['value'] = sentence['value'].replace(
-                    '\n' + DEFAULT_AUDIO_TOKEN, DEFAULT_AUDIO_TOKEN
-                ).strip()
-                if sentence['value'].endswith(DEFAULT_AUDIO_TOKEN):
-                    AUDIO_TOKEN_NUM = sentence['value'].count(DEFAULT_AUDIO_TOKEN)
-                    sentence['value'] = sentence['value'].replace(
-                        DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM, ''
-                    ).strip()
-                    sentence['value'] = DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM + sentence['value']
-                    sentence['value'] = sentence['value'].strip()
-
-                # TODO: conversation
-                # if "mmtag" in conversation_lib.default_conversation.version:
-                #     sentence['value'] = sentence['value'].replace(
-                #         DEFAULT_IMAGE_TOKEN,
-                #         '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>'
-                #     )
-                
+    for sentence in source:
+        if (DEFAULT_IMAGE_TOKEN in sentence['value'] or 
+            DEFAULT_VIDEO_TOKEN in sentence['value'] or 
+            DEFAULT_AUDIO_TOKEN in sentence['value']):
+            
+            # Image Tokens
+            sentence['value'] = sentence['value'].replace(
+                DEFAULT_IMAGE_TOKEN + '\n', DEFAULT_IMAGE_TOKEN
+            ).strip()
+            sentence['value'] = sentence['value'].replace(
+                '\n' + DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN
+            ).strip()
+            if sentence['value'].endswith(DEFAULT_IMAGE_TOKEN):
                 IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
-                if IMAGE_TOKEN_NUM > MAX_IMAGE_LENGTH:
-                    sentence['value'] = sentence['value'].replace(
-                        DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM,
-                        DEFAULT_IMAGE_TOKEN * MAX_IMAGE_LENGTH
-                    ).strip()
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM, ''
+                ).strip()
+                sentence['value'] = DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM + sentence['value']
+                sentence['value'] = sentence['value'].strip()
+            
+            # Video Tokens
+            if sentence['value'].endswith(DEFAULT_VIDEO_TOKEN):
+                VIDEO_TOKEN_NUM = sentence['value'].count(DEFAULT_VIDEO_TOKEN)
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM, ''
+                ).strip()
+                sentence['value'] = DEFAULT_VIDEO_TOKEN * VIDEO_TOKEN_NUM + sentence['value']
+                sentence['value'] = sentence['value'].strip()
+            
+            # Audio Tokens
+            sentence['value'] = sentence['value'].replace(
+                DEFAULT_AUDIO_TOKEN + '\n', DEFAULT_AUDIO_TOKEN
+            ).strip()
+            sentence['value'] = sentence['value'].replace(
+                '\n' + DEFAULT_AUDIO_TOKEN, DEFAULT_AUDIO_TOKEN
+            ).strip()
+            if sentence['value'].endswith(DEFAULT_AUDIO_TOKEN):
+                AUDIO_TOKEN_NUM = sentence['value'].count(DEFAULT_AUDIO_TOKEN)
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM, ''
+                ).strip()
+                sentence['value'] = DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM + sentence['value']
+                sentence['value'] = sentence['value'].strip()
 
-            # Prepare replacement tokens for image, video, and audio
-            replace_token = DEFAULT_IMAGE_TOKEN
-            vid_replace_token = DEFAULT_IMAGE_TOKEN * image_token_num
-            aud_replace_token = DEFAULT_AUDIO_TOKEN * audio_token_num
-            if data_args.mm_use_im_start_end:
-                replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
-                vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_VID_END_TOKEN
-                aud_replace_token = DEFAULT_AUDIO_START_TOKEN + aud_replace_token + DEFAULT_AUDIO_END_TOKEN
+            # TODO: conversation
+            # if "mmtag" in conversation_lib.default_conversation.version:
+            #     sentence['value'] = sentence['value'].replace(
+            #         DEFAULT_IMAGE_TOKEN,
+            #         '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>'
+            #     )
+            
+            IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
+            if IMAGE_TOKEN_NUM > MAX_IMAGE_LENGTH:
+                sentence['value'] = sentence['value'].replace(
+                    DEFAULT_IMAGE_TOKEN * IMAGE_TOKEN_NUM,
+                    DEFAULT_IMAGE_TOKEN * MAX_IMAGE_LENGTH
+                ).strip()
 
-            sentence["value"] = sentence["value"].replace(
-                DEFAULT_IMAGE_TOKEN, replace_token + '\n'
-            )
-            sentence["value"] = sentence["value"].replace(
-                DEFAULT_VIDEO_TOKEN, vid_replace_token + '\n'
-            )
-            sentence["value"] = sentence["value"].replace(
-                DEFAULT_AUDIO_TOKEN, aud_replace_token + '\n'
-            )
-            sentence['value'] = sentence['value'].replace('\n\n', '\n')
-    return sources
+        # Prepare replacement tokens for image, video, and audio
+        replace_token = DEFAULT_IMAGE_TOKEN
+        vid_replace_token = DEFAULT_IMAGE_TOKEN * image_token_num
+        aud_replace_token = DEFAULT_AUDIO_TOKEN * audio_token_num
+        if data_args.mm_use_im_start_end:
+            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+            vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_VID_END_TOKEN
+            aud_replace_token = DEFAULT_AUDIO_START_TOKEN + aud_replace_token + DEFAULT_AUDIO_END_TOKEN
+
+        sentence["value"] = sentence["value"].replace(
+            DEFAULT_IMAGE_TOKEN, replace_token + '\n'
+        )
+        sentence["value"] = sentence["value"].replace(
+            DEFAULT_VIDEO_TOKEN, vid_replace_token + '\n'
+        )
+        sentence["value"] = sentence["value"].replace(
+            DEFAULT_AUDIO_TOKEN, aud_replace_token + '\n'
+        )
+        sentence['value'] = sentence['value'].replace('\n\n', '\n')
+    return source
 
 
 def preprocess(
@@ -165,6 +165,13 @@ def preprocess(
     for j, sentence in enumerate(source):
         role = roles[sentence["from"]]
         assert role == conv.roles[j % 2], f"Role mismatch"
+        
+        # add image and audio tokens for human inputs
+        if role == conv.roles[0]:
+            if has_image:
+                sentence["value"] = DEFAULT_IMAGE_TOKEN + '\n' + sentence["value"]
+            if has_audio:
+                sentence["value"] = DEFAULT_AUDIO_TOKEN + '\n' + sentence["value"]
         conv.append_message(role, sentence["value"])
     conversations.append(conv.get_prompt())
             
@@ -286,8 +293,7 @@ class LazySupervisedDataset(Dataset):
         if data_args.has_image:
             assert 'images_folder' in raw_data, "Image folder not found in data"
             
-            root_folder = self.data_args.data_folder
-            image_folder = os.path.join(root_folder, raw_data['images_folder'])
+            image_folder = os.path.join(self.data_args.data_folder, raw_data['images_folder'])
             image_processor = self.image_processor
             
             if not os.path.exists(image_folder):
@@ -323,10 +329,8 @@ class LazySupervisedDataset(Dataset):
         if data_args.has_audio:
             assert 'audio_file' in raw_data, "Audio file not found in data"
             
-            audio_file_name = raw_data['audio_file']
-            audio_folder = self.data_args.audio_folder
             audio_processor = self.audio_processor
-            audio_file_name = os.path.join(audio_folder, audio_file_name)
+            audio_file_name = os.path.join(self.data_args.data_folder, raw_data['audio_file'])
             audio = audio_processor.get_hidden_states(audio_file_name)
         
         data_dict = preprocess(
@@ -363,24 +367,11 @@ if __name__ == "__main__":
     
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses(
-        args = [
-            "--model_name_or_path", "lmsys/vicuna-7b-v1.5",
-            "--meta_file_path", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/metas_video_convs.json",
-            "--output_dir", "/home/saberwu2002/CS229-Project/output/",
-            "--has_video",
-            "--has_image",
-            # "--has_audio",
-            "--data_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/"
-        ]
-    )
-    # print(model_args.model_name_or_path)
-    # exit()
-    login(token='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')
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, use_auth_token=True, use_fast=False)
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     image_processor = ImageEvalProcessor()
-    # audio_processor = MERTEncoder() # TODO: fill in arguments
-    audio_processor = None
+    audio_processor = MERTEncoder()
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
     
     data_0 = dataset[0]
@@ -388,6 +379,6 @@ if __name__ == "__main__":
     print("labels:", data_0['labels'])
     print("attention_mask:", data_0['attention_mask'])
     print("images.size():", len(data_0['images']))
-    # print("audio.size():", len(data_0['audio']))
+    print("audio.size():", len(data_0['audio']))
     print("Done!")
     
