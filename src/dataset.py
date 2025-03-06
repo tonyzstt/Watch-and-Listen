@@ -31,7 +31,8 @@ print(f"RAM: {ram_gb} GB")
 
 @dataclass
 class ModelArguments:
-    model_name_or_path: Optional[str] = field(default="/home/saberwu2002/CS229-Project/hf_ckp/vicuna-7b-v1.5")
+    # model_name_or_path: Optional[str] = field(default="/home/saberwu2002/CS229-Project/hf_ckp/vicuna-7b-v1.5")
+    model_name_or_path: Optional[str] = field(default="lmsys/vicuna-7b-v1.5")
 
 
 @dataclass
@@ -365,8 +366,7 @@ if __name__ == "__main__":
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, use_fast=False)
     image_processor = ImageEvalProcessor()
     audio_processor = MERTEncoder()
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
