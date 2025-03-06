@@ -14,6 +14,7 @@ import transformers
 from transformers.trainer_pt_utils import LabelSmoother
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from PIL import Image
+from huggingface_hub import login
 
 from conversation import get_conv_template
 from constant import *
@@ -364,7 +365,7 @@ if __name__ == "__main__":
         (ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(
         args = [
-            "--model_name_or_path", "/home/saberwu2002/CS229-Project/hf_ckp/vicuna-7b-v1.5",
+            "--model_name_or_path", "lmsys/vicuna-7b-v1.5",
             "--meta_file_path", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/metas_video_convs.json",
             "--output_dir", "/home/saberwu2002/CS229-Project/output/",
             "--has_video",
@@ -373,8 +374,10 @@ if __name__ == "__main__":
             "--data_folder", "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed/test/"
         ]
     )
-    
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    # print(model_args.model_name_or_path)
+    # exit()
+    login(token='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')
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, use_auth_token=True, use_fast=False)
     image_processor = ImageEvalProcessor()
     # audio_processor = MERTEncoder() # TODO: fill in arguments
     audio_processor = None
