@@ -14,8 +14,8 @@ import random
 # The processed metadata will be stored under the same directory
 # as the original metadata.
 ###
-MMTRAIL_DIR = "/home/saberwu2002/CS229-Project/local_data/MMTrail_processed"
-QUESTIONS_DIR = "/home/saberwu2002/CS229-Project/preprocess"
+MMTRAIL_DIR = "/home/tonyzst/Desktop/CS229-Project/data/MMTrail"
+QUESTIONS_DIR = "/home/tonyzst/Desktop/CS229-Project/preprocess"
 
 
 def load_questions(root_dir: str) -> Tuple[list, list]:
@@ -66,7 +66,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
                 'conversations': [
                     {
                         'from': 'human',
-                        'value': random.choice(video_questions)
+                        'value': "<video>\n" + random.choice(video_questions)
                     },
                     {
                         'from': 'assistant',
@@ -84,7 +84,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
                 'conversations': [
                     {
                         'from': 'human',
-                        'value': random.choice(audio_questions)
+                        'value': "<audio>\n" + random.choice(audio_questions)
                     },
                     {
                         'from': 'assistant',
@@ -106,7 +106,6 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
         metas_dir = os.path.join(split_dir, 'metas')
         metas_processed_video_fp = os.path.join(split_dir, 'metas_video_convs.json')
         metas_processed_audio_fp = os.path.join(split_dir, 'metas_audio_convs.json')
-        
         if not os.path.exists(metas_dir):
             print(f'No metadata found for [{split}] split.')
             continue
