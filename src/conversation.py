@@ -39,6 +39,7 @@ class SeparatorStyle(IntEnum):
     GEMMA = auto()
     CLLM = auto()
     DEFAULT = auto()
+    SINGLE = auto()
 
 
 IMAGE_PLACEHOLDER_STR = "$$<image>$$"
@@ -324,6 +325,15 @@ class Conversation:
                 else:
                     ret += role + ":"
             return ret
+        elif self.sep_style == SeparatorStyle.SINGLE:
+            ret = self.system + self.sep
+            for role, message in self.messages:
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += role + ": " + message + self.sep
+                else:
+                    ret += role + ":"
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -2295,6 +2305,22 @@ register_conv_template(
         roles=("user", "assistant"),
         sep_style=SeparatorStyle.DEFAULT,
         sep=None,
+    )
+)
+
+register_conv_template(
+    Conversation(
+        name="simple",
+        system_message=("A chat between a curious human and an artificial intelligence assistant. "
+            "The assistant gives helpful, detailed, and polite answers to the human's questions."),
+        roles=("Human", "Assistant"),
+        messages=(
+            ("Human", "Hi!"),
+            ("Assistant", "Hi there! How can I help you today?")
+        ),
+        offset=2,
+        sep_style=SeparatorStyle.SINGLE,
+        sep="###",
     )
 )
 

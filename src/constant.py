@@ -13,6 +13,8 @@ DEFAULT_VID_START_TOKEN = "<vid_start>"
 DEFAULT_VID_END_TOKEN = "<vid_end>"
 DEFAULT_BOX_START_TOKEN = "<box_start>"
 DEFAULT_BOX_END_TOKEN = "<box_end>"
+DEFAULT_IMAGE_PATCH_TOKEN = "<im_patch>"
+DEFAULT_VIDEO_PATCH_TOKEN = "<vid_patch>"
 
 # Audio Tokens
 DEFAULT_AUDIO_TOKEN = "<audio>"

@@ -3,6 +3,10 @@ import torch.nn as nn
 
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
 
+def build_vision_tower(vision_tower_cfg, **kwargs):
+    
+    return CLIPVisionTower("openai/clip-vit-base-patch32", args=vision_tower_cfg, **kwargs)
+
 
 class CLIPVisionTower(nn.Module):
     def __init__(self, vision_tower, args=None, delay_load=False):
