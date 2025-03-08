@@ -101,7 +101,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
                 'conversations': [
                     {
                         'from': 'human',
-                        'value': "<audio>\n<video>\n" + random.choice(audio_questions) # TODO: change this to video + audio question
+                        'value': "<video>\n<audio>\n" + random.choice(audio_questions) # TODO: change this to video + audio question
                     },
                     {
                         'from': 'assistant',

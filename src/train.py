@@ -31,65 +31,8 @@ def print_gpu_memory_usage(device=0):
     reserved = torch.cuda.memory_reserved(device) / 1024**2   
     print(f"GPU {device} - Allocated Memory: {allocated:.2f} MB")
     print(f"GPU {device} - Reserved Memory: {reserved:.2f} MB")
-
+    
 class MultiModalDataset(Dataset):
-    """
-    Each example should contain:
-      - "visual_tokens": a list or tensor of visual features.
-      - "audio_tokens": a list or tensor of audio features.
-      - "question": the text question.
-      - "answer": the ground truth answer.
-    
-    The final text prompt is created as:
-         "Q: {question} A: {answer}"
-    with the prompt portion masked in the labels.
-    """
-    def __init__(self, data, tokenizer, max_length=512):
-        self.data = data
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        item = self.data[idx]
-
-        prompt = f"Q: {item['question']} A:"
-        full_text = prompt + " " + item["answer"]
-
-        encoding = self.tokenizer(
-            full_text,
-            truncation=True,
-            max_length=self.max_length,
-            padding="max_length",
-            return_tensors="pt",
-        )
-        input_ids = encoding["input_ids"].squeeze(0)
-
-        prompt_encoding = self.tokenizer(
-            prompt,
-            truncation=True,
-            max_length=self.max_length,
-            padding="max_length",
-            return_tensors="pt",
-        )
-        prompt_ids = prompt_encoding["input_ids"].squeeze(0)
-        prompt_len = (prompt_ids != self.tokenizer.pad_token_id).sum().item()
-        labels = input_ids.clone()
-        labels[:prompt_len] = -100
-
-        visual_tokens = torch.tensor(item["visual_tokens"], dtype=torch.float)
-        audio_tokens = torch.tensor(item["audio_tokens"], dtype=torch.float)
-
-        return {
-            "input_ids": input_ids,
-            "labels": labels,
-            "visual_tokens": visual_tokens,
-            "audio_tokens": audio_tokens,
-        }
-    
-class MultiModalDataset2(Dataset):
     """
     Modified dataset class that accepts a data module's output.
     Each example is assumed to have the following keys:
@@ -115,8 +58,6 @@ class MultiModalDataset2(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
 
-        # If the values are not already tensors, convert them.
-        # It is assumed that 'input_ids', 'labels', and 'attention_mask' are lists or tensors of ints.
         input_ids = item["input_ids"]
         labels = item["labels"]
         # attention_mask = item["attention_mask"] # FIXME: I don't think we need this here
@@ -228,7 +169,6 @@ class MultiModalLlama(nn.Module):
 
             if is_video:
                 visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
-                visual_embeds = self.vision_projector(image_features) 
 
             for input_id, label, visual_embed in zip(input_ids, labels, visual_embeds):
 
@@ -310,7 +250,67 @@ class MultiModalLlama(nn.Module):
                 new_labels.append(new_label)
 
         else:
-            pass
+
+            is_video = False
+            if input_ids.shape[0] != images.shape[0]:
+                is_video = True
+            
+            image_features = self.vision_tower(images)
+            visual_embeds = self.vision_projector(image_features) 
+
+            if is_video:
+                visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
+
+            audio_embeds = self.audio_projector(audio)
+            audio_embeds = audio_embeds.view(audio_embeds.shape[0], -1, audio_embeds.shape[-1])
+
+            for input_id, label, audio_embed, visual_embed in zip(input_ids, labels, audio_embeds, visual_embeds):
+
+                visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
+                
+                # TODO: remove this hardcode
+                # For vision
+                indices_32002 = (input_id == 32002).nonzero(as_tuple=True)[0]
+                first_index_32002 = indices_32002[0].item() if indices_32002.numel() > 0 else None
+                indices_32003 = (input_id == 32003).nonzero(as_tuple=True)[0]
+                first_index_32003 = indices_32003[0].item() if indices_32003.numel() > 0 else None
+                
+                # TODO: remove this hardcode
+                # For Audio
+                indices_32004 = (input_id == 32004).nonzero(as_tuple=True)[0]
+                first_index_32004 = indices_32004[0].item() if indices_32004.numel() > 0 else None
+                indices_32005 = (input_id == 32005).nonzero(as_tuple=True)[0]
+                first_index_32005 = indices_32005[0].item() if indices_32005.numel() > 0 else None
+
+                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                target_masked_len = (label == IGNORE_TOKEN_ID).sum()
+                valid_label = label[target_masked_len:seq_len]
+                if False:  # Inspect and check the correctness of masking
+                    z = valid_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                prefix_id = input_id[:first_index_32002+1]
+                midfix_id = input_id[first_index_32003:first_index_32004+1]
+                suffix_id = input_id[first_index_32005:seq_len]
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
+                midfix_embeds = self.llama.get_input_embeddings()(midfix_id)  
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
+                # -1 for we remove the image and audio token place holder
+                new_target_mask_len = target_masked_len - 2 + audio_embed.shape[0] + visual_embed.shape[0]
+                input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)
+                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                if False:  # Inspect and check the correctness of masking
+                    z = new_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                
+                embeddings.append(input_embds)
+                new_labels.append(new_label)
 
         embeddings = torch.stack(embeddings, dim=0)
         new_labels = torch.stack(new_labels, dim=0)
@@ -321,7 +321,9 @@ class MultiModalLlama(nn.Module):
             attention_mask=new_attention_mask,
             labels=new_labels,
         )
-        print_gpu_memory_usage()
+
+        # print_gpu_memory_usage()
+
         return outputs
 
     @property
@@ -340,7 +342,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
     # TODO: Implement fp8 to enable longer length and larger batch size
-    tokenizer.model_max_length = 512
+    tokenizer.model_max_length = 1024
     tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN, DEFAULT_AUDIO_START_TOKEN, DEFAULT_AUDIO_END_TOKEN], special_tokens=True)
     image_processor = ImageEvalProcessor()
     audio_processor = MERTEncoder()
@@ -350,7 +352,7 @@ if __name__ == "__main__":
     llama_model_name = model_args.model_name_or_path
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
-    dataset = MultiModalDataset2(data_module)
+    dataset = MultiModalDataset(data_module)
     collector = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     clip_model_name="openai/clip-vit-base-patch32"
     # audio_model_name="facebook/wav2vec2-base-960h"
@@ -366,7 +368,7 @@ if __name__ == "__main__":
     model.unfreeze_vision_projection_layers()    
     training_args_stage1 = TrainingArguments(
         output_dir="./llama_finetuned_stage1",
-        per_device_train_batch_size=2,
+        per_device_train_batch_size=1,
         num_train_epochs=20,
         learning_rate=2e-5,
         logging_steps=10,
@@ -390,7 +392,7 @@ if __name__ == "__main__":
     model.unfreeze_llama()           
     training_args_stage2 = TrainingArguments(
         output_dir="./llama_finetuned_stage2",
-        per_device_train_batch_size=8,
+        per_device_train_batch_size=1,
         num_train_epochs=20,
         learning_rate=1e-5,
         logging_steps=10,
@@ -404,6 +406,7 @@ if __name__ == "__main__":
         model=model,
         args=training_args_stage2,
         train_dataset=dataset,
+        data_collator=collector
     )
 
     print("=== Stage 2: Fine-Tuning LLaMA Only (Projection Layers Frozen) ===")
