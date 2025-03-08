@@ -293,30 +293,37 @@ class DataCollatorForSupervisedDataset(object):
         )
 
         if 'images' in instances[0]:
-            images = [instance['images'] for instance in instances]
-
-            new_images = []
-            for image in images:
-                if type(image) is list:
-                    for i in image:
-                        new_images.append(i)
-                else:
-                    new_images.append(image)
-            images = new_images
-
-            if all(x is not None and x.shape == images[0].shape for x in images):
-                batch['images'] = torch.stack(images)
+            
+            if instances[0]['images'] is None:
+                batch['images'] = None
             else:
-                batch['images'] = images
+                images = [instance['images'] for instance in instances]
+
+                new_images = []
+                for image in images:
+                    if type(image) is list:
+                        for i in image:
+                            new_images.append(i)
+                    else:
+                        new_images.append(image)
+                images = new_images
+
+                if all(x is not None and x.shape == images[0].shape for x in images):
+                    batch['images'] = torch.stack(images)
+                else:
+                    batch['images'] = images
         
         if 'audio' in instances[0]:
-            audios = [instance['audio'] for instance in instances]
+            if instances[0]['audio'] is None:
+                batch['audio'] = None
+            else:
+                audios = [instance['audio'] for instance in instances]
 
-            new_audio = []
-            for audio in audios:
-                new_audio.append(audio)
+                new_audio = []
+                for audio in audios:
+                    new_audio.append(audio)
 
-            batch['audio'] = torch.stack(new_audio)
+                batch['audio'] = torch.stack(new_audio)
 
         return batch
 
