@@ -174,11 +174,10 @@ class MultiModalLlama(nn.Module):
 
                 visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
                 
-                # TODO: remove this hardcode
-                indices_32002 = (input_id == 32002).nonzero(as_tuple=True)[0]
-                first_index_32002 = indices_32002[0].item() if indices_32002.numel() > 0 else None
-                indices_32003 = (input_id == 32003).nonzero(as_tuple=True)[0]
-                first_index_32003 = indices_32003[0].item() if indices_32003.numel() > 0 else None
+                indices_vid_start = (input_id == DEFAULT_VID_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_start = indices_vid_start[0].item() if indices_vid_start.numel() > 0 else None
+                indices_vid_end = (input_id == DEFAULT_VID_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
 
                 seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
@@ -188,8 +187,8 @@ class MultiModalLlama(nn.Module):
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
                     print(tokenizer.decode(z))
                     exit()
-                prefix_id = input_id[:first_index_32002+1]
-                suffix_id = input_id[first_index_32003:seq_len]
+                prefix_id = input_id[:first_vid_start+1]
+                suffix_id = input_id[first_vid_end:seq_len]
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
                 # -1 for we remove the image token place holder
@@ -215,11 +214,10 @@ class MultiModalLlama(nn.Module):
 
             for input_id, label, audio_embed in zip(input_ids, labels, audio_embeds):
                 
-                # TODO: remove this hardcode
-                indices_32004 = (input_id == 32004).nonzero(as_tuple=True)[0]
-                first_index_32004 = indices_32004[0].item() if indices_32004.numel() > 0 else None
-                indices_32005 = (input_id == 32005).nonzero(as_tuple=True)[0]
-                first_index_32005 = indices_32005[0].item() if indices_32005.numel() > 0 else None
+                indices_aud_start = (input_id == DEFAULT_AUDIO_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_start = indices_aud_start[0].item() if indices_aud_start.numel() > 0 else None
+                indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
 
                 seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
@@ -229,8 +227,8 @@ class MultiModalLlama(nn.Module):
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
                     print(tokenizer.decode(z))
                     exit()
-                prefix_id = input_id[:first_index_32004+1]
-                suffix_id = input_id[first_index_32005:seq_len]
+                prefix_id = input_id[:first_aud_start+1]
+                suffix_id = input_id[first_aud_end:seq_len]
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
                 # -1 for we remove the image token place holder
@@ -268,19 +266,17 @@ class MultiModalLlama(nn.Module):
 
                 visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
                 
-                # TODO: remove this hardcode
                 # For vision
-                indices_32002 = (input_id == 32002).nonzero(as_tuple=True)[0]
-                first_index_32002 = indices_32002[0].item() if indices_32002.numel() > 0 else None
-                indices_32003 = (input_id == 32003).nonzero(as_tuple=True)[0]
-                first_index_32003 = indices_32003[0].item() if indices_32003.numel() > 0 else None
+                indices_vid_start = (input_id == DEFAULT_VID_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_start = indices_vid_start[0].item() if indices_vid_start.numel() > 0 else None
+                indices_vid_end = (input_id == DEFAULT_VID_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
                 
-                # TODO: remove this hardcode
                 # For Audio
-                indices_32004 = (input_id == 32004).nonzero(as_tuple=True)[0]
-                first_index_32004 = indices_32004[0].item() if indices_32004.numel() > 0 else None
-                indices_32005 = (input_id == 32005).nonzero(as_tuple=True)[0]
-                first_index_32005 = indices_32005[0].item() if indices_32005.numel() > 0 else None
+                indices_aud_start = (input_id == DEFAULT_AUDIO_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_start = indices_aud_start[0].item() if indices_aud_start.numel() > 0 else None
+                indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
 
                 seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
@@ -290,9 +286,9 @@ class MultiModalLlama(nn.Module):
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
                     print(tokenizer.decode(z))
                     exit()
-                prefix_id = input_id[:first_index_32002+1]
-                midfix_id = input_id[first_index_32003:first_index_32004+1]
-                suffix_id = input_id[first_index_32005:seq_len]
+                prefix_id = input_id[:first_vid_start+1]
+                midfix_id = input_id[first_vid_end:first_aud_start+1]
+                suffix_id = input_id[first_aud_end:seq_len]
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
                 midfix_embeds = self.llama.get_input_embeddings()(midfix_id)  
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
@@ -361,7 +357,6 @@ if __name__ == "__main__":
     model.llama.resize_token_embeddings(len(tokenizer))
     id = tokenizer(DEFAULT_VID_START_TOKEN).input_ids
     prefix_embeds = model.llama.get_input_embeddings()(torch.tensor(id))  
-    # audio_encoder = AudioEncoder(audio_model_name)
 
     # Stage 1 of training
     model.freeze_llama()               
@@ -369,7 +364,7 @@ if __name__ == "__main__":
     training_args_stage1 = TrainingArguments(
         output_dir="./llama_finetuned_stage1",
         per_device_train_batch_size=1,
-        num_train_epochs=20,
+        num_train_epochs=2,
         learning_rate=2e-5,
         logging_steps=10,
         save_steps=100,
