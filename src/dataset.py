@@ -290,7 +290,6 @@ class DataCollatorForSupervisedDataset(object):
         batch = dict(
             input_ids=input_ids,
             labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
         )
 
         if 'images' in instances[0]:
@@ -309,9 +308,17 @@ class DataCollatorForSupervisedDataset(object):
                 batch['images'] = torch.stack(images)
             else:
                 batch['images'] = images
+        
+        if 'audio' in instances[0]:
+            audios = [instance['audio'] for instance in instances]
+
+            new_audio = []
+            for audio in audios:
+                new_audio.append(audio)
+
+            batch['audio'] = torch.stack(new_audio)
 
         return batch
-
 
 
 class LazySupervisedDataset(Dataset):
@@ -388,7 +395,7 @@ class LazySupervisedDataset(Dataset):
                                 result = Image.new(pil_img.mode, (height, height), background_color)
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
-                        # FIXME: image_processor.image_mean is not defined
+                            
                         image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
                         image = image_processor.preprocess(image)
                     else:
