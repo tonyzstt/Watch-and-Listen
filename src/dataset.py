@@ -157,8 +157,6 @@ def preprocess(
     has_image: bool = False,
     has_audio: bool = False
 ) -> Dict:
-    # TODO: Change this
-    has_audio = False
     # FIXME: Implement get_conversation_template
     conv = get_conv_template(CONV_TEMPLATE_NAME)
     roles = {"human": conv.roles[0], "assistant": conv.roles[1]}
@@ -456,13 +454,14 @@ if __name__ == "__main__":
     audio_processor = MERTEncoder()
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
     
-    data_0 = dataset[10]
+    data_0 = dataset[2]
     print(data_0.keys())
-    print(data_0['images'][0].shape)
+    if data_args.has_image:
+        print("images.size():", len(data_0['images']))
+    if data_args.has_audio:
+        print("audio.size():", len(data_0['audio']))
     print("input_ids:", data_0['input_ids'])
     print("labels:", data_0['labels'])
     print("attention_mask:", data_0['attention_mask'])
-    print("images.size():", len(data_0['images']))
-    print("audio.size():", len(data_0['audio']))
     print("Done!")
     

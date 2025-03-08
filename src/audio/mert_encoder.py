@@ -4,6 +4,7 @@ import torchaudio
 import torchaudio.transforms as T
 from transformers import Wav2Vec2FeatureExtractor, AutoModel
 from transformers.configuration_utils import PretrainedConfig
+import torch.nn.functional as F
 
 class MERTConfig(PretrainedConfig):
     r"""
@@ -54,6 +55,7 @@ class MERTConfig(PretrainedConfig):
         feature_extractor_cqt_bins=336,
         deepnorm=False,
         attention_relax=-1.0,
+        fixed_length = 100000,
         **kwargs
     ):
         super().__init__(**kwargs, pad_token_id=pad_token_id, bos_token_id=bos_token_id, eos_token_id=eos_token_id)
@@ -84,6 +86,7 @@ class MERTConfig(PretrainedConfig):
         self.do_stable_layer_norm = do_stable_layer_norm
         self.use_weighted_layer_sum = use_weighted_layer_sum
         self.classifier_proj_size = classifier_proj_size
+        self.fixed_length = fixed_length
 
         if (
             (len(self.conv_stride) != self.num_feat_extract_layers)
@@ -132,6 +135,7 @@ class MERTEncoder(nn.Module):
         self.sampling_rate = self.processor.sampling_rate  # Default to processor's sampling rate
         if sampling_rate:
             self.sampling_rate = sampling_rate
+        self.fixed_length = 96100
     
     def load_audio(self, audio_file_name: str):
         # Load the audio file from the given path
@@ -152,6 +156,8 @@ class MERTEncoder(nn.Module):
         mono_waveform = waveform.mean(dim=0)
         # Resample if necessary
         waveform = self.resample_audio(mono_waveform, sampling_rate)
+        waveform = waveform.unsqueeze(0).unsqueeze(0)
+        waveform = F.interpolate(waveform, size=self.fixed_length, mode='linear', align_corners=True)[0][0]
         
         # Process the waveform using the processor
         inputs = self.processor(waveform, sampling_rate=self.sampling_rate, return_tensors="pt")
@@ -168,8 +174,12 @@ class MERTEncoder(nn.Module):
         
         # Extract hidden states
         all_layer_hidden_states = torch.stack(outputs.hidden_states).squeeze()
+        
+
 
         # Time-reduced hidden states (mean pooling over time)
-        time_reduced_hidden_states = all_layer_hidden_states.mean(-2)
+        # TODO: we want to preserve the time dimension
+        last_hidden_state = all_layer_hidden_states[-1]
+        last_hidden_state = last_hidden_state.view(5, 60, last_hidden_state.shape[-1])
         
-        return time_reduced_hidden_states[-1]
+        return last_hidden_state
