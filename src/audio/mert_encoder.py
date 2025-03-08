@@ -136,6 +136,9 @@ class MERTEncoder(nn.Module):
         if sampling_rate:
             self.sampling_rate = sampling_rate
         self.fixed_length = 96100
+
+        for param in self.model.parameters():
+            param.requires_grad = False
     
     def load_audio(self, audio_file_name: str):
         # Load the audio file from the given path
