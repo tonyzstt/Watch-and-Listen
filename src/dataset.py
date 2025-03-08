@@ -227,7 +227,7 @@ def preprocess(
             # "-2" is hardcoded for the Llama tokenizer to make the offset correct.
             # Here we use -4/-8 since we have both image and audio, we also need to mask vid/aud start/end
             if has_image and has_audio:
-                instruction_len = len(tokenizer(parts[0]).input_ids) - 8
+                instruction_len = len(tokenizer(parts[0]).input_ids) - 6
             elif has_image or has_audio:
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 4
 
@@ -468,7 +468,7 @@ if __name__ == "__main__":
     audio_processor = MERTEncoder()
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
     
-    data_0 = dataset[2]
+    data_0 = dataset[5]
     print(data_0.keys())
     if data_args.has_image:
         print("images.size():", len(data_0['images']))
