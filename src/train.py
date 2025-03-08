@@ -119,14 +119,14 @@ class MultiModalDataset2(Dataset):
         # It is assumed that 'input_ids', 'labels', and 'attention_mask' are lists or tensors of ints.
         input_ids = item["input_ids"]
         labels = item["labels"]
-        attention_mask = item["attention_mask"]
-        images = item["images"]
-        audio = item["audio"]
+        # attention_mask = item["attention_mask"] # FIXME: I don't think we need this here
+        images = item["images"] if "images" in item else None
+        audio = item["audio"] if "audio" in item else None
 
         return {
             "input_ids": input_ids,
             "labels": labels,
-            "attention_mask": attention_mask, # Not needed?
+            # "attention_mask": attention_mask, # Not needed?
             "images": images,
             "audio": audio,
         }
@@ -206,7 +206,7 @@ class MultiModalLlama(nn.Module):
         for param in self.vision_projector.parameters():
             param.requires_grad = True
 
-    def forward(self, input_ids, images, attention_mask, labels=None):
+    def forward(self, input_ids, images=None, audio=None, labels=None):
         """
         Input:
           - input_ids: tokenized text (question+answer) of shape (batch, seq_len)
@@ -214,57 +214,103 @@ class MultiModalLlama(nn.Module):
           - audio_tokens: audio features of shape (batch, a_len, feat_dim)
           - labels: token labels for LM loss.
         """
-        
-        # Check if input is video or image
-        is_video = False
-        if input_ids.shape[0] != images.shape[0]:
-            is_video = True
-        
-        image_features = self.vision_tower(images)
-        visual_embeds = self.vision_projector(image_features) 
-
-        if is_video:
-            visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
 
         embeddings = []
         new_labels = []
-        for input_id, label, visual_embed in zip(input_ids, labels, visual_embeds):
+        if audio is None:
 
-            visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
+            is_video = False
+            if input_ids.shape[0] != images.shape[0]:
+                is_video = True
             
-            # TODO: remove this hardcode
-            indices_32002 = (input_id == 32002).nonzero(as_tuple=True)[0]
-            first_index_32002 = indices_32002[0].item() if indices_32002.numel() > 0 else None
-            indices_32003 = (input_id == 32003).nonzero(as_tuple=True)[0]
-            first_index_32003 = indices_32003[0].item() if indices_32003.numel() > 0 else None
+            image_features = self.vision_tower(images)
+            visual_embeds = self.vision_projector(image_features) 
 
-            seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
-            target_masked_len = (label == IGNORE_TOKEN_ID).sum()
-            valid_label = label[target_masked_len:seq_len]
-            if False:  # Inspect and check the correctness of masking
-                z = valid_label.clone()
-                z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                print(tokenizer.decode(z))
-                exit()
-            prefix_id = input_id[:first_index_32002+1]
-            suffix_id = input_id[first_index_32003:seq_len]
-            prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
-            suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
-            # -1 for we remove the image token place holder
-            new_target_mask_len = target_masked_len - 1 + visual_embed.shape[0]
-            input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)
-            pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
-            input_embds = torch.cat([input_embds, pad_embds], dim=0)
-            pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-            new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
-            if False:  # Inspect and check the correctness of masking
-                z = new_label.clone()
-                z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                print(tokenizer.decode(z))
-                exit()
+            if is_video:
+                visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
+                visual_embeds = self.vision_projector(image_features) 
+
+            for input_id, label, visual_embed in zip(input_ids, labels, visual_embeds):
+
+                visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
+                
+                # TODO: remove this hardcode
+                indices_32002 = (input_id == 32002).nonzero(as_tuple=True)[0]
+                first_index_32002 = indices_32002[0].item() if indices_32002.numel() > 0 else None
+                indices_32003 = (input_id == 32003).nonzero(as_tuple=True)[0]
+                first_index_32003 = indices_32003[0].item() if indices_32003.numel() > 0 else None
+
+                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                target_masked_len = (label == IGNORE_TOKEN_ID).sum()
+                valid_label = label[target_masked_len:seq_len]
+                if False:  # Inspect and check the correctness of masking
+                    z = valid_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                prefix_id = input_id[:first_index_32002+1]
+                suffix_id = input_id[first_index_32003:seq_len]
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
+                # -1 for we remove the image token place holder
+                new_target_mask_len = target_masked_len - 1 + visual_embed.shape[0]
+                input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)
+                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                if False:  # Inspect and check the correctness of masking
+                    z = new_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                
+                embeddings.append(input_embds)
+                new_labels.append(new_label)
+        
+        elif images is None:
             
-            embeddings.append(input_embds)
-            new_labels.append(new_label)
+            audio_embeds = self.audio_projector(audio)
+            audio_embeds = audio_embeds.view(audio_embeds.shape[0], -1, audio_embeds.shape[-1])
+
+            for input_id, label, audio_embed in zip(input_ids, labels, audio_embeds):
+                
+                # TODO: remove this hardcode
+                indices_32004 = (input_id == 32004).nonzero(as_tuple=True)[0]
+                first_index_32004 = indices_32004[0].item() if indices_32004.numel() > 0 else None
+                indices_32005 = (input_id == 32005).nonzero(as_tuple=True)[0]
+                first_index_32005 = indices_32005[0].item() if indices_32005.numel() > 0 else None
+
+                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                target_masked_len = (label == IGNORE_TOKEN_ID).sum()
+                valid_label = label[target_masked_len:seq_len]
+                if False:  # Inspect and check the correctness of masking
+                    z = valid_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                prefix_id = input_id[:first_index_32004+1]
+                suffix_id = input_id[first_index_32005:seq_len]
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
+                # -1 for we remove the image token place holder
+                new_target_mask_len = target_masked_len - 1 + audio_embed.shape[0]
+                input_embds = torch.cat([prefix_embeds, audio_embed, suffix_embeds], dim=0)
+                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                if False:  # Inspect and check the correctness of masking
+                    z = new_label.clone()
+                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
+                    print(tokenizer.decode(z))
+                    exit()
+                
+                embeddings.append(input_embds)
+                new_labels.append(new_label)
+
+        else:
+            pass
 
         embeddings = torch.stack(embeddings, dim=0)
         new_labels = torch.stack(new_labels, dim=0)
@@ -328,7 +374,7 @@ if __name__ == "__main__":
         fp16=True,
         save_safetensors=False,
         remove_unused_columns=False,  
-        deepspeed="deepspeed.json"
+        deepspeed="deepspeed.json",
     )
     trainer_stage1 = Trainer(
         model=model,

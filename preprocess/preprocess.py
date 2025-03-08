@@ -62,7 +62,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
                 'id': meta['video_id'],
                 'video_path': meta['original_metadata']['video_path'],
                 'images_folder': meta['images_folder'],
-                'audio_file': meta['audio_file'],
+                # 'audio_file': meta['audio_file'],
                 'conversations': [
                     {
                         'from': 'human',
@@ -79,7 +79,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
             meta_processed_audio = {
                 'id': meta['video_id'],
                 # 'video_path': meta['original_metadata']['video_path'],
-                'images_folder': meta['images_folder'],
+                # 'images_folder': meta['images_folder'],
                 'audio_file': meta['audio_file'],
                 'conversations': [
                     {
