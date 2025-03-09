@@ -122,6 +122,12 @@ class MultiModalLlama(nn.Module):
             AudioProjectorConfig(**audio_config_params)
         )
 
+    def freeze_all(self):
+        """Freeze all parameters of the model."""
+        self.freeze_llama()
+        self.freeze_audio_projection_layers()
+        self.freeze_vision_projection_layers()
+
     def freeze_llama(self):
         """Freeze all parameters of the LLaMA model."""
         for param in self.llama.parameters():
@@ -135,17 +141,25 @@ class MultiModalLlama(nn.Module):
             else:
                 param.requires_grad = False
 
-    def freeze_projection_layers(self):
-        """Freeze vision and audio projection layers."""
-        for param in self.vision_projector.parameters():
-            param.requires_grad = False
-        for param in self.audio_projector.parameters():
-            param.requires_grad = False
-
     def unfreeze_vision_projection_layers(self):
-        """Unfreeze vision and audio projection layers."""
+        """Unfreeze vision projection layers."""
         for param in self.vision_projector.parameters():
             param.requires_grad = True
+
+    def unfreeze_audio_projection_layers(self):
+        """Unfreeze audio projection layers."""
+        for param in self.audio_projector.parameters():
+            param.requires_grad = True
+
+    def freeze_vision_projection_layers(self):
+        """Freeze vision projection layers."""
+        for param in self.vision_projector.parameters():
+            param.requires_grad = False
+
+    def freeze_audio_projection_layers(self):
+        """Freeze audio projection layers."""
+        for param in self.audio_projector.parameters():
+            param.requires_grad = False
 
     def forward(self, input_ids, images=None, audio=None, labels=None):
         """
@@ -310,24 +324,20 @@ class MultiModalLlama(nn.Module):
 
         embeddings = torch.stack(embeddings, dim=0)
         new_labels = torch.stack(new_labels, dim=0)
-        new_attention_mask = torch.tensor(new_labels != tokenizer.pad_token_id).cuda().to(torch.int64)
+        new_attention_mask = (new_labels != tokenizer.pad_token_id).clone().detach().cuda().to(torch.int64)
 
+        
         outputs = self.llama(
             inputs_embeds=embeddings,
             attention_mask=new_attention_mask,
             labels=new_labels,
         )
 
-        # print_gpu_memory_usage()
-
         return outputs
 
     @property
     def config(self):
         return self.llama.config
-
-    def prepare_inputs_for_generation(self, input_ids, **kwargs):
-        return self.llama.prepare_inputs_for_generation(input_ids, **kwargs)
 
 if __name__ == "__main__":
 
@@ -351,58 +361,92 @@ if __name__ == "__main__":
     dataset = MultiModalDataset(data_module)
     collector = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     clip_model_name="openai/clip-vit-base-patch32"
-    # audio_model_name="facebook/wav2vec2-base-960h"
     clip_vision_tower = CLIPVisionTower(clip_model_name).cuda()
     model = MultiModalLlama(llama_model_name=llama_model_name, vision_tower=clip_vision_tower)
     model.llama.resize_token_embeddings(len(tokenizer))
     id = tokenizer(DEFAULT_VID_START_TOKEN).input_ids
     prefix_embeds = model.llama.get_input_embeddings()(torch.tensor(id))  
 
-    # Stage 1 of training
-    model.freeze_llama()               
-    model.unfreeze_vision_projection_layers()    
-    training_args_stage1 = TrainingArguments(
-        output_dir="./llama_finetuned_stage1",
-        per_device_train_batch_size=1,
-        num_train_epochs=2,
-        learning_rate=2e-5,
-        logging_steps=10,
-        save_steps=100,
-        fp16=True,
-        save_safetensors=False,
-        remove_unused_columns=False,  
-        deepspeed="deepspeed.json",
-    )
-    trainer_stage1 = Trainer(
-        model=model,
-        args=training_args_stage1,
-        train_dataset=dataset,
-        data_collator=collector
-    )
+    if training_args.stage == "stage_1":
 
-    print("=== Stage 1: Training Projection Layers Only ===")
-    trainer_stage1.train()
-    # Stage 2 of training
-    model.freeze_projection_layers()  
-    model.unfreeze_llama()           
-    training_args_stage2 = TrainingArguments(
-        output_dir="./llama_finetuned_stage2",
-        per_device_train_batch_size=1,
-        num_train_epochs=20,
-        learning_rate=1e-5,
-        logging_steps=10,
-        save_steps=100,
-        fp16=True,
-        save_safetensors=False,
-        remove_unused_columns=False,
-        deepspeed="deepspeed.json"
-    )
-    trainer_stage2 = Trainer(
-        model=model,
-        args=training_args_stage2,
-        train_dataset=dataset,
-        data_collator=collector
-    )
+        # Stage 1 of training
+        model.freeze_all()               
+        model.unfreeze_vision_projection_layers()    
+        training_args_stage1 = TrainingArguments(
+            output_dir=training_args.model_save_path,
+            per_device_train_batch_size=training_args.batch_size,
+            num_train_epochs=training_args.num_train_epochs,
+            learning_rate=training_args.learning_rate,
+            logging_steps=training_args.logging_steps,
+            fp16=training_args.fp16,
+            save_safetensors=False,
+            remove_unused_columns=False,  
+            deepspeed=training_args.deepspeed_config,
+        )
+        trainer_stage1 = Trainer(
+            model=model,
+            args=training_args_stage1,
+            train_dataset=dataset,
+            data_collator=collector
+        )
 
-    print("=== Stage 2: Fine-Tuning LLaMA Only (Projection Layers Frozen) ===")
-    trainer_stage2.train()
+        print("=== Stage 1: Training Vision Projection Layers Only ===")
+        trainer_stage1.train()
+        trainer_stage1.save_model(training_args.model_save_path)
+        model.tokenizer.save_pretrained(training_args.model_save_path)
+
+    elif training_args.stage == "stage_2":
+
+        # Stage 2 of training
+        model.freeze_all()  
+        model.unfreeze_audio_projection_layers()
+        training_args_stage2 = TrainingArguments(
+            output_dir=training_args.model_save_path,
+            per_device_train_batch_size=training_args.batch_size,
+            num_train_epochs=training_args.num_train_epochs,
+            learning_rate=training_args.learning_rate,
+            logging_steps=training_args.logging_steps,
+            fp16=training_args.fp16,
+            save_safetensors=False,
+            remove_unused_columns=False,  
+            deepspeed=training_args.deepspeed_config,
+        )
+        trainer_stage2 = Trainer(
+            model=model,
+            args=training_args_stage2,
+            train_dataset=dataset,
+            data_collator=collector
+        )
+
+        print("=== Stage 2: Training Audio Projection Layers Only ===")
+        trainer_stage2.train()
+        trainer_stage2.save_model(training_args.model_save_path)
+        model.tokenizer.save_pretrained(training_args.model_save_path)
+
+    elif training_args.stage == "stage_3":
+
+        # Stage 3 of training
+        model.freeze_all() 
+        model.unfreeze_llama()
+        training_args_stage3 = TrainingArguments(
+            output_dir=training_args.model_save_path,
+            per_device_train_batch_size=training_args.batch_size,
+            num_train_epochs=training_args.num_train_epochs,
+            learning_rate=training_args.learning_rate,
+            logging_steps=training_args.logging_steps,
+            fp16=training_args.fp16,
+            save_safetensors=False,
+            remove_unused_columns=False,  
+            deepspeed=training_args.deepspeed_config,
+        )
+        trainer_stage3 = Trainer(
+            model=model,
+            args=training_args_stage3,
+            train_dataset=dataset,
+            data_collator=collector
+        )
+
+        print("=== Stage 3: Fine-Tuning LLaMA Only (Projection Layers Frozen) ===")
+        trainer_stage3.train()
+        trainer_stage3.save_model(training_args.model_save_path)
+        model.tokenizer.save_pretrained(training_args.model_save_path)

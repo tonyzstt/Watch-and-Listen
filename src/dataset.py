@@ -52,7 +52,14 @@ class DataArguments:
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
-    pass
+    stage: str = field(default=None, metadata={"help": "Training stage identifier"})
+    batch_size: int = field(default=1, metadata={"help": "Training batch size per device"})
+    num_train_epochs: int = field(default=1, metadata={"help": "Total number of training epochs"})
+    learning_rate: float = field(default=2e-5, metadata={"help": "Initial learning rate"})
+    logging_steps: int = field(default=10, metadata={"help": "Frequency of logging steps"})
+    fp16: bool = field(default=True, metadata={"help": "Whether to use 16-bit (mixed) precision training"})
+    deepspeed_config: str = field(default="deepspeed.json", metadata={"help": "Path to DeepSpeed config file"})
+    model_save_path: str = field(default=None, metadata={"help": "Training save path"})
 
 
 def preprocess_multimodal(

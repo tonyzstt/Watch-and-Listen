@@ -4,5 +4,12 @@ python train.py \
     --data_folder /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \
     --is_multimodal \
-    --has_video \
     --has_image \
+    --stage stage_1 \
+    --batch_size 1 \
+    --num_train_epochs 10 \
+    --learning_rate 2e-5 \
+    --logging_steps 200 \
+    --fp16 True \
+    --deepspeed_config deepspeed.json
+    --model_save_path ./llama_finetuned_stage1
