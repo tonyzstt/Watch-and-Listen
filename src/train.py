@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 torch.cuda.empty_cache()
-from typing import Dict, Optional, Sequence, List
-from dataclasses import dataclass, field
 from peft import LoraConfig, get_peft_model
 
 import transformers
@@ -12,7 +10,6 @@ from transformers import (
     AutoModelForCausalLM,
     Trainer
 )
-from transformers.trainer_pt_utils import LabelSmoother
 from huggingface_hub import login
 
 from constant import *
@@ -60,14 +57,12 @@ class MultiModalDataset(Dataset):
 
         input_ids = item["input_ids"]
         labels = item["labels"]
-        # attention_mask = item["attention_mask"] # FIXME: I don't think we need this here
         images = item["images"] if "images" in item else None
         audio = item["audio"] if "audio" in item else None
 
         return {
             "input_ids": input_ids,
             "labels": labels,
-            # "attention_mask": attention_mask, # Not needed?
             "images": images,
             "audio": audio,
         }
@@ -186,11 +181,12 @@ class MultiModalLlama(nn.Module):
 
             for input_id, label, visual_embed in zip(input_ids, labels, visual_embeds):
 
+
                 visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
                 
-                indices_vid_start = (input_id == DEFAULT_VID_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                indices_vid_start = (input_id == DEFAULT_IM_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
                 first_vid_start = indices_vid_start[0].item() if indices_vid_start.numel() > 0 else None
-                indices_vid_end = (input_id == DEFAULT_VID_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                indices_vid_end = (input_id == DEFAULT_IM_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
                 first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
 
                 seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
@@ -211,7 +207,7 @@ class MultiModalLlama(nn.Module):
                 pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
                 pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
@@ -251,7 +247,7 @@ class MultiModalLlama(nn.Module):
                 pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
                 pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
@@ -312,7 +308,7 @@ class MultiModalLlama(nn.Module):
                 pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
                 pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), tokenizer.unk_token_id).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
                     z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
@@ -382,6 +378,9 @@ if __name__ == "__main__":
             save_safetensors=False,
             remove_unused_columns=False,  
             deepspeed=training_args.deepspeed_config,
+            save_strategy="steps",   
+            save_steps=10000,          
+            save_total_limit=1  
         )
         trainer_stage1 = Trainer(
             model=model,
@@ -410,6 +409,9 @@ if __name__ == "__main__":
             save_safetensors=False,
             remove_unused_columns=False,  
             deepspeed=training_args.deepspeed_config,
+            save_strategy="steps",   
+            save_steps=10000,          
+            save_total_limit=1 
         )
         trainer_stage2 = Trainer(
             model=model,
@@ -438,6 +440,9 @@ if __name__ == "__main__":
             save_safetensors=False,
             remove_unused_columns=False,  
             deepspeed=training_args.deepspeed_config,
+            save_strategy="steps",   
+            save_steps=10000,          
+            save_total_limit=1 
         )
         trainer_stage3 = Trainer(
             model=model,
