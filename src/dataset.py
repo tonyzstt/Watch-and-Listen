@@ -383,6 +383,34 @@ class LazySupervisedDataset(Dataset):
             
             if not os.path.exists(image_folder):
                 print(f"Image folder {image_folder} not found")
+            elif os.path.isfile(image_folder):
+
+                # For single image
+                image_fp = os.path.join(image_folder)
+                image = Image.open(image_fp).convert('RGB')
+            
+                # Padding and processing image
+                if self.data_args.image_aspect_ratio == 'pad':
+                    def expand2square(pil_img, background_color):
+                        width, height = pil_img.size
+                        if width == height:
+                            return pil_img
+                        elif width > height:
+                            result = Image.new(pil_img.mode, (width, width), background_color)
+                            result.paste(pil_img, (0, (width - height) // 2))
+                            return result
+                        else:
+                            result = Image.new(pil_img.mode, (height, height), background_color)
+                            result.paste(pil_img, ((height - width) // 2, 0))
+                            return result
+                        
+                    image = expand2square(image, tuple(int(x*255) for x in image_processor.image_mean))
+                    image = image_processor.preprocess(image)
+                else:
+                    image = image_processor.preprocess(image)
+                    
+                images.append(image)
+                images.append(image)
             else:
                 # all images in the folder
                 num = 0
