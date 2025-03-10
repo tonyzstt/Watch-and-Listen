@@ -1,15 +1,15 @@
 python train.py \
     --model_name_or_path lmsys/vicuna-7b-v1.5 \
-    --meta_file_path /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train/metas_video_convs.json \
+    --meta_file_path /home/tonyzst/Desktop/CS229-Project/preprocess/metas_image_convs.json \
     --data_folder /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \
     --is_multimodal \
     --has_image \
     --stage stage_1 \
-    --batch_size 1 \
-    --num_train_epochs 10 \
-    --learning_rate 2e-5 \
+    --batch_size 4 \
+    --num_train_epochs 6 \
+    --learning_rate 1e-5 \
     --logging_steps 200 \
     --fp16 True \
-    --deepspeed_config deepspeed.json
+    --deepspeed_config deepspeed.json \
     --model_save_path ./llama_finetuned_stage1

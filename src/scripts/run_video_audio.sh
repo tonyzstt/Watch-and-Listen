@@ -5,11 +5,12 @@ python train.py \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \
     --is_multimodal \
     --has_image \
+    --has_audio \
     --stage stage_3 \
     --batch_size 1 \
     --num_train_epochs 10 \
-    --learning_rate 2e-5 \
-    --logging_steps 200 \
+    --learning_rate 1e-5 \
+    --logging_steps 50 \
     --fp16 True \
-    --deepspeed_config deepspeed.json
+    --deepspeed_config deepspeed.json \
     --model_save_path ./llama_final_model
