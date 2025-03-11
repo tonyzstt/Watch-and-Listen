@@ -60,6 +60,7 @@ class TrainingArguments(transformers.TrainingArguments):
     fp16: bool = field(default=True, metadata={"help": "Whether to use 16-bit (mixed) precision training"})
     deepspeed_config: str = field(default="deepspeed.json", metadata={"help": "Path to DeepSpeed config file"})
     model_save_path: str = field(default=None, metadata={"help": "Training save path"})
+    max_token_length: int = field(default=256, metadata={"help": "Maximum number of tokens"})
 
 
 def preprocess_multimodal(
@@ -409,7 +410,6 @@ class LazySupervisedDataset(Dataset):
                 else:
                     image = image_processor.preprocess(image)
                     
-                images.append(image)
                 images.append(image)
             else:
                 # all images in the folder

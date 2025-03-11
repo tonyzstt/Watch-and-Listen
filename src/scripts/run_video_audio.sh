@@ -1,5 +1,5 @@
 python train.py \
-    --model_name_or_path llama_finetuned_stage2 \
+    --model_name_or_path llama_finetuned \
     --meta_file_path /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train/metas_video_audio_convs.json \
     --data_folder /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \
@@ -13,4 +13,5 @@ python train.py \
     --logging_steps 50 \
     --fp16 True \
     --deepspeed_config deepspeed.json \
-    --model_save_path ./llama_final_model
+    --model_save_path ./llama_finetuned \
+    --max_token_length 1024

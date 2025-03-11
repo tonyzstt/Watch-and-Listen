@@ -1,15 +1,16 @@
-python dataset.py \
-    --model_name_or_path llama_finetuned_stage1 \
+python train.py \
+    --model_name_or_path llama_finetuned \
     --meta_file_path /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train/metas_audio_convs.json \
     --data_folder /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \
     --is_multimodal \
     --has_audio \
     --stage stage_2 \
-    --batch_size 1 \
-    --num_train_epochs 10 \
-    --learning_rate 2e-5 \
+    --batch_size 2 \
+    --num_train_epochs 1 \
+    --learning_rate 1e-4 \
     --logging_steps 200 \
     --fp16 True \
     --deepspeed_config deepspeed.json \
-    --model_save_path ./llama_finetuned_stage2
+    --model_save_path ./llama_finetuned \
+    --max_token_length 512

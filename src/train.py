@@ -98,7 +98,6 @@ class MultiModalLlama(nn.Module):
             )
             self.llama = get_peft_model(self.llama, lora_config)
             self.llama.print_trainable_parameters()
-            exit()
 
         if vision_config_params is None:
             vision_config_params = {
@@ -434,7 +433,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
     # TODO: Implement fp8 to enable longer length and larger batch size
-    tokenizer.model_max_length = 512
+    tokenizer.model_max_length = training_args.max_token_length
     tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN, DEFAULT_AUDIO_START_TOKEN, DEFAULT_AUDIO_END_TOKEN], special_tokens=True)
     image_processor = ImageEvalProcessor()
     audio_processor = MERTEncoder()

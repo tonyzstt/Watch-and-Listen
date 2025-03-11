@@ -8,8 +8,9 @@ python train.py \
     --stage stage_1 \
     --batch_size 4 \
     --num_train_epochs 6 \
-    --learning_rate 1e-5 \
+    --learning_rate 1e-4 \
     --logging_steps 200 \
     --fp16 True \
     --deepspeed_config deepspeed.json \
-    --model_save_path ./llama_finetuned_stage1
+    --model_save_path ./llama_finetuned \
+    --max_token_length 256
