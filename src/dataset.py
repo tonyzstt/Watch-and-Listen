@@ -35,7 +35,8 @@ print(f"RAM: {ram_gb} GB")
 
 @dataclass
 class ModelArguments:
-    model_name_or_path: Optional[str] = field(default="/home/saberwu2002/CS229-Project/hf_ckp/vicuna-7b-v1.5")
+    model_name_or_path: Optional[str] = field(default=None)
+    pretrain_path: Optional[str] = field(default=None)
 
 
 @dataclass

@@ -1,5 +1,6 @@
 python train.py \
-    --model_name_or_path llama_finetuned \
+    --model_name_or_path lmsys/vicuna-7b-v1.5 \
+    --pretrain_path  llama_finetuned\
     --meta_file_path /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train/metas_audio_convs.json \
     --data_folder /home/tonyzst/Desktop/CS229-Project/data/MMTrail/train \
     --output_dir /home/tonyzst/Desktop/CS229-Project/ \

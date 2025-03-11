@@ -12,10 +12,8 @@ from transformers import (
     AutoModelForCausalLM,
     Trainer
 )
-from huggingface_hub import login
 
 from constant import *
-from huggingface_hub import login
 from vision.vision_projection import build_vision_projector
 from vision.processor import ImageEvalProcessor
 from vision.clip_encoder import CLIPVisionTower
@@ -438,7 +436,6 @@ if __name__ == "__main__":
     image_processor = ImageEvalProcessor()
     audio_processor = MERTEncoder()
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, image_processor=image_processor, audio_processor=audio_processor)
-    login(token='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')
     llama_model_name = model_args.model_name_or_path
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -516,8 +513,8 @@ if __name__ == "__main__":
     elif training_args.stage == "stage_3":
 
         # Stage 3 of training
-        model.update_vision_layer(training_args.model_save_path)
-        model.update_audio_layer(training_args.model_save_path)
+        model.update_vision_layer(model_args.pretrain_path)
+        model.update_audio_layer(model_args.pretrain_path)
         model.freeze_vision_projection_layers()
         model.freeze_audio_projection_layers()
         training_args_stage3 = TrainingArguments(
