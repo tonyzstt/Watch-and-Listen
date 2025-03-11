@@ -1,3 +1,5 @@
+import os
+import json
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
@@ -95,6 +97,8 @@ class MultiModalLlama(nn.Module):
                 task_type="CAUSAL_LM",
             )
             self.llama = get_peft_model(self.llama, lora_config)
+            self.llama.print_trainable_parameters()
+            exit()
 
         if vision_config_params is None:
             vision_config_params = {
@@ -109,13 +113,99 @@ class MultiModalLlama(nn.Module):
                 "hidden_size": 4096,
             }
 
-        # Projection Layers
         self.vision_projector = build_vision_projector(
             VisionProjectorConfig(**vision_config_params)
         )
         self.audio_projector = build_audio_projector(
             AudioProjectorConfig(**audio_config_params)
         )
+
+    @classmethod
+    def from_pretrained(cls, base, load_directory, vision_tower=None):
+
+        config_path = os.path.join(load_directory, "config.json")
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        use_lora = config.get("use_lora", False)
+        vision_config_params = config.get("vision_config_params", None)
+        audio_config_params = config.get("audio_config_params", None)
+
+        llama_dir = os.path.join(load_directory, "llama")
+        tokenizer = AutoTokenizer.from_pretrained(llama_dir)
+
+        base_model = AutoModelForCausalLM.from_pretrained(base)
+
+        if use_lora:
+            lora_config = LoraConfig(
+                r=16,
+                lora_alpha=32,
+                target_modules=["q_proj", "k_proj", "v_proj"],
+                lora_dropout=0.1,
+                bias="none",
+                task_type="CAUSAL_LM",
+            )
+            model_llama = get_peft_model(base_model, lora_config)
+        else:
+            model_llama = base_model
+
+        adapter_path = os.path.join(llama_dir, "lora_params.bin")
+        if os.path.exists(adapter_path):
+            lora_state_dict = torch.load(adapter_path, map_location="cpu")
+            current_state_dict = model_llama.state_dict()
+            current_state_dict.update(lora_state_dict)
+            model_llama.load_state_dict(current_state_dict)
+
+        model = cls(
+            vision_tower=vision_tower,
+            llama_model_name=llama_model_name,
+            vision_config_params=vision_config_params,
+            audio_config_params=audio_config_params,
+            use_lora=use_lora,
+        )
+        model.llama = model_llama
+        model.tokenizer = tokenizer
+
+        vision_projector_dir = os.path.join(load_directory, "vision_projector")
+        vision_state = torch.load(
+            os.path.join(vision_projector_dir, "pytorch_model.bin"),
+            map_location="cpu"
+        )
+        model.vision_projector.load_state_dict(vision_state)
+
+        audio_projector_dir = os.path.join(load_directory, "audio_projector")
+        audio_state = torch.load(
+            os.path.join(audio_projector_dir, "pytorch_model.bin"),
+            map_location="cpu"
+        )
+        model.audio_projector.load_state_dict(audio_state)
+
+        return model
+    
+    def save_vision_layer(self, save_path):
+        """Save the vision projector's parameters to the specified file."""
+        os.makedirs(save_path, exist_ok=True)
+        torch.save(self.vision_projector.state_dict(), f"{save_path}/vision.bin")
+
+    def update_vision_layer(self, load_path):
+        """Load and update the vision projector's parameters from the specified file."""
+        state_dict = torch.load(f"{load_path}/vision.bin", map_location="cpu", weights_only=True)
+        self.vision_projector.load_state_dict(state_dict)
+
+    def save_audio_layer(self, save_path):
+        """Save the audio projector's parameters to the specified file."""
+        os.makedirs(save_path, exist_ok=True)
+        torch.save(self.audio_projector.state_dict(), f"{save_path}/audio.bin")
+
+    def update_audio_layer(self, load_path):
+        """Load and update the audio projector's parameters from the specified file."""
+        state_dict = torch.load(f"{load_path}/audio.bin", map_location="cpu", weights_only=True)
+        self.audio_projector.load_state_dict(state_dict)
+
+    def save_lora_parameters(self, save_path):
+        """Save all parameters starting with 'lora_' from the LLaMA model."""
+        os.makedirs(save_path, exist_ok=True)
+        self.llama.save_pretrained(save_path)
 
     def freeze_all(self):
         """Freeze all parameters of the model."""
@@ -344,12 +434,11 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
 
     # TODO: Implement fp8 to enable longer length and larger batch size
-    tokenizer.model_max_length = 1024
+    tokenizer.model_max_length = 512
     tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN, DEFAULT_AUDIO_START_TOKEN, DEFAULT_AUDIO_END_TOKEN], special_tokens=True)
     image_processor = ImageEvalProcessor()
     audio_processor = MERTEncoder()
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, image_processor=image_processor, audio_processor=audio_processor)
-
     login(token='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')
     llama_model_name = model_args.model_name_or_path
     tokenizer.pad_token = tokenizer.eos_token
@@ -358,8 +447,10 @@ if __name__ == "__main__":
     collector = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     clip_model_name="openai/clip-vit-base-patch32"
     clip_vision_tower = CLIPVisionTower(clip_model_name).cuda()
+    save_dir = "test"
     model = MultiModalLlama(llama_model_name=llama_model_name, vision_tower=clip_vision_tower)
     model.llama.resize_token_embeddings(len(tokenizer))
+    model.llama.config.vocab_size = len(tokenizer)
     id = tokenizer(DEFAULT_VID_START_TOKEN).input_ids
     prefix_embeds = model.llama.get_input_embeddings()(torch.tensor(id))  
 
@@ -391,8 +482,7 @@ if __name__ == "__main__":
 
         print("=== Stage 1: Training Vision Projection Layers Only ===")
         trainer_stage1.train()
-        trainer_stage1.save_model(training_args.model_save_path)
-        model.tokenizer.save_pretrained(training_args.model_save_path)
+        model.save_vision_layer(training_args.model_save_path)
 
     elif training_args.stage == "stage_2":
 
@@ -422,14 +512,15 @@ if __name__ == "__main__":
 
         print("=== Stage 2: Training Audio Projection Layers Only ===")
         trainer_stage2.train()
-        trainer_stage2.save_model(training_args.model_save_path)
-        model.tokenizer.save_pretrained(training_args.model_save_path)
+        model.save_audio_layer(training_args.model_save_path)
 
     elif training_args.stage == "stage_3":
 
         # Stage 3 of training
-        model.freeze_all() 
-        model.unfreeze_llama()
+        model.update_vision_layer(training_args.model_save_path)
+        model.update_audio_layer(training_args.model_save_path)
+        model.freeze_vision_projection_layers()
+        model.freeze_audio_projection_layers()
         training_args_stage3 = TrainingArguments(
             output_dir=training_args.model_save_path,
             per_device_train_batch_size=training_args.batch_size,
@@ -453,5 +544,5 @@ if __name__ == "__main__":
 
         print("=== Stage 3: Fine-Tuning LLaMA Only (Projection Layers Frozen) ===")
         trainer_stage3.train()
-        trainer_stage3.save_model(training_args.model_save_path)
-        model.tokenizer.save_pretrained(training_args.model_save_path)
+        model.save_lora_parameters(training_args.model_save_path)
+        
