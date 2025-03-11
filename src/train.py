@@ -71,6 +71,7 @@ class MultiModalLlama(nn.Module):
     def __init__(
         self,
         vision_tower=None,
+        tokenizer=None,
         llama_model_name=None,
         vision_config_params=None,
         audio_config_params=None,
@@ -79,7 +80,7 @@ class MultiModalLlama(nn.Module):
         super(MultiModalLlama, self).__init__()
 
         self.llama = AutoModelForCausalLM.from_pretrained(llama_model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(llama_model_name)
+        self.tokenizer = tokenizer
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.vision_tower = vision_tower
@@ -276,13 +277,13 @@ class MultiModalLlama(nn.Module):
                 indices_vid_end = (input_id == DEFAULT_IM_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
                 first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
 
-                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                seq_len = int(input_id.ne(self.tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
                 valid_label = label[target_masked_len:seq_len]
                 if False:  # Inspect and check the correctness of masking
                     z = valid_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 prefix_id = input_id[:first_vid_start+1]
                 suffix_id = input_id[first_vid_end:seq_len]
@@ -291,14 +292,14 @@ class MultiModalLlama(nn.Module):
                 # -1 for we remove the image token place holder
                 new_target_mask_len = target_masked_len - 1 + visual_embed.shape[0]
                 input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)
-                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                pad_embds = torch.zeros((self.tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                pad_length = self.tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), self.tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 
                 embeddings.append(input_embds)
@@ -316,13 +317,13 @@ class MultiModalLlama(nn.Module):
                 indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
                 first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
 
-                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                seq_len = int(input_id.ne(self.tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
                 valid_label = label[target_masked_len:seq_len]
                 if False:  # Inspect and check the correctness of masking
                     z = valid_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 prefix_id = input_id[:first_aud_start+1]
                 suffix_id = input_id[first_aud_end:seq_len]
@@ -331,14 +332,14 @@ class MultiModalLlama(nn.Module):
                 # -1 for we remove the image token place holder
                 new_target_mask_len = target_masked_len - 1 + audio_embed.shape[0]
                 input_embds = torch.cat([prefix_embeds, audio_embed, suffix_embeds], dim=0)
-                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                pad_embds = torch.zeros((self.tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                pad_length = self.tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), self.tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 
                 embeddings.append(input_embds)
@@ -375,13 +376,13 @@ class MultiModalLlama(nn.Module):
                 indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
                 first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
 
-                seq_len = int(input_id.ne(tokenizer.pad_token_id).sum())
+                seq_len = int(input_id.ne(self.tokenizer.pad_token_id).sum())
                 target_masked_len = (label == IGNORE_TOKEN_ID).sum()
                 valid_label = label[target_masked_len:seq_len]
                 if False:  # Inspect and check the correctness of masking
                     z = valid_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 prefix_id = input_id[:first_vid_start+1]
                 midfix_id = input_id[first_vid_end:first_aud_start+1]
@@ -392,14 +393,14 @@ class MultiModalLlama(nn.Module):
                 # -1 for we remove the image and audio token place holder
                 new_target_mask_len = target_masked_len - 2 + audio_embed.shape[0] + visual_embed.shape[0]
                 input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)
-                pad_embds = torch.zeros((tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
+                pad_embds = torch.zeros((self.tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
                 input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                pad_length = tokenizer.model_max_length - new_target_mask_len - len(valid_label)
-                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), tokenizer.pad_token_id).cuda()], dim=0)
+                pad_length = self.tokenizer.model_max_length - new_target_mask_len - len(valid_label)
+                new_label = torch.cat([torch.full((new_target_mask_len,), IGNORE_TOKEN_ID).cuda(), valid_label, torch.full((pad_length,), self.tokenizer.pad_token_id).cuda()], dim=0)
                 if False:  # Inspect and check the correctness of masking
                     z = new_label.clone()
-                    z = torch.where(z == IGNORE_TOKEN_ID, tokenizer.unk_token_id, z)
-                    print(tokenizer.decode(z))
+                    z = torch.where(z == IGNORE_TOKEN_ID, self.tokenizer.unk_token_id, z)
+                    print(self.tokenizer.decode(z))
                     exit()
                 
                 embeddings.append(input_embds)
@@ -407,7 +408,7 @@ class MultiModalLlama(nn.Module):
 
         embeddings = torch.stack(embeddings, dim=0)
         new_labels = torch.stack(new_labels, dim=0)
-        new_attention_mask = (new_labels != tokenizer.pad_token_id).clone().detach().cuda().to(torch.int64)
+        new_attention_mask = (new_labels != self.tokenizer.pad_token_id).clone().detach().cuda().to(torch.int64)
 
         
         outputs = self.llama(
@@ -417,6 +418,130 @@ class MultiModalLlama(nn.Module):
         )
 
         return outputs
+    
+    def generate(self, input_ids, images=None, audio=None, **generate_kwargs):
+   
+        embeddings = []
+        
+        if audio is None:
+            is_video = False
+            if input_ids.shape[0] != images.shape[0]:
+                is_video = True
+
+            image_features = self.vision_tower(images)
+            visual_embeds = self.vision_projector(image_features)
+            
+            if is_video:
+                visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
+
+            for input_id, visual_embed in zip(input_ids, visual_embeds):
+                visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
+                
+                indices_vid_start = (input_id == DEFAULT_IM_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_start = indices_vid_start[0].item() if indices_vid_start.numel() > 0 else None
+                indices_vid_end = (input_id == DEFAULT_IM_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
+                
+                prefix_id = input_id[:first_vid_start+1]
+                suffix_id = input_id[first_vid_end:]
+                
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
+                
+                input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)
+                
+                if input_embds.shape[0] < self.tokenizer.model_max_length:
+                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
+                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
+                                            device=input_embds.device,
+                                            dtype=input_embds.dtype)
+                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                    
+                embeddings.append(input_embds)
+        
+        elif images is None:
+            audio_embeds = self.audio_projector(audio)
+            audio_embeds = audio_embeds.view(audio_embeds.shape[0], -1, audio_embeds.shape[-1])
+            
+            for input_id, audio_embed in zip(input_ids, audio_embeds):
+                indices_aud_start = (input_id == DEFAULT_AUDIO_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_start = indices_aud_start[0].item() if indices_aud_start.numel() > 0 else None
+                indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
+                
+                prefix_id = input_id[:first_aud_start+1]
+                suffix_id = input_id[first_aud_end:]
+                
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
+                
+                input_embds = torch.cat([prefix_embeds, audio_embed, suffix_embeds], dim=0)
+                
+                if input_embds.shape[0] < self.tokenizer.model_max_length:
+                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
+                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
+                                            device=input_embds.device,
+                                            dtype=input_embds.dtype)
+                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                    
+                embeddings.append(input_embds)
+        
+        else:
+            is_video = False
+            if input_ids.shape[0] != images.shape[0]:
+                is_video = True
+            
+            image_features = self.vision_tower(images)
+            visual_embeds = self.vision_projector(image_features)
+            if is_video:
+                visual_embeds = visual_embeds.view(input_ids.shape[0], -1, *visual_embeds.shape[1:])
+                
+            audio_embeds = self.audio_projector(audio)
+            audio_embeds = audio_embeds.view(audio_embeds.shape[0], -1, audio_embeds.shape[-1])
+            
+            for input_id, visual_embed, audio_embed in zip(input_ids, visual_embeds, audio_embeds):
+                visual_embed = visual_embed.view(-1, visual_embed.shape[-1])
+                
+                indices_vid_start = (input_id == DEFAULT_VID_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_start = indices_vid_start[0].item() if indices_vid_start.numel() > 0 else None
+                indices_vid_end = (input_id == DEFAULT_VID_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_vid_end = indices_vid_end[0].item() if indices_vid_end.numel() > 0 else None
+                
+                indices_aud_start = (input_id == DEFAULT_AUDIO_START_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_start = indices_aud_start[0].item() if indices_aud_start.numel() > 0 else None
+                indices_aud_end = (input_id == DEFAULT_AUDIO_END_TOKEN_INDEX).nonzero(as_tuple=True)[0]
+                first_aud_end = indices_aud_end[0].item() if indices_aud_end.numel() > 0 else None
+                
+                prefix_id = input_id[:first_vid_start+1]
+                midfix_id = input_id[first_vid_end:first_aud_start+1]
+                suffix_id = input_id[first_aud_end:]
+                
+                prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
+                midfix_embeds = self.llama.get_input_embeddings()(midfix_id)
+                suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
+                
+                input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)
+                
+                if input_embds.shape[0] < self.tokenizer.model_max_length:
+                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
+                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
+                                            device=input_embds.device,
+                                            dtype=input_embds.dtype)
+                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
+                    
+                embeddings.append(input_embds)
+        
+        embeddings = torch.stack(embeddings, dim=0)
+        attention_mask = (embeddings.abs().sum(dim=-1) != 0).long()
+
+        outputs = self.llama.generate(
+            inputs_embeds=embeddings,
+            attention_mask=attention_mask,
+            **generate_kwargs
+        )
+        
+        return outputs
+
 
     @property
     def config(self):
@@ -444,7 +569,7 @@ if __name__ == "__main__":
     clip_model_name="openai/clip-vit-base-patch32"
     clip_vision_tower = CLIPVisionTower(clip_model_name).cuda()
     save_dir = "test"
-    model = MultiModalLlama(llama_model_name=llama_model_name, vision_tower=clip_vision_tower)
+    model = MultiModalLlama(llama_model_name=llama_model_name, vision_tower=clip_vision_tower, tokenizer=tokenizer)
     model.llama.resize_token_embeddings(len(tokenizer))
     model.llama.config.vocab_size = len(tokenizer)
     id = tokenizer(DEFAULT_VID_START_TOKEN).input_ids
