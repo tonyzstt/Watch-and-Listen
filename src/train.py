@@ -409,8 +409,8 @@ class MultiModalLlama(nn.Module):
         embeddings = torch.stack(embeddings, dim=0)
         new_labels = torch.stack(new_labels, dim=0)
         new_attention_mask = (new_labels != self.tokenizer.pad_token_id).clone().detach().cuda().to(torch.int64)
-
-        
+        new_labels[new_labels == self.tokenizer.pad_token_id] = IGNORE_TOKEN_ID
+               
         outputs = self.llama(
             inputs_embeds=embeddings,
             attention_mask=new_attention_mask,
