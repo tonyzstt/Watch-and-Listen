@@ -14,11 +14,13 @@ import random
 # The processed metadata will be stored under the same directory
 # as the original metadata.
 ###
-MMTRAIL_DIR = "/home/tonyzst/Desktop/CS229-Project/data/MMTrail"
-QUESTIONS_DIR = "/home/tonyzst/Desktop/CS229-Project/preprocess"
+# MMTRAIL_DIR = "/home/tonyzst/Desktop/CS229-Project/data/MMTrail"
+# QUESTIONS_DIR = "/home/tonyzst/Desktop/CS229-Project/preprocess"
 
+MMTRAIL_DIR = "/home/saberwu2002/disk-data/data/MMTrail_processed"
+QUESTIONS_DIR = "/home/saberwu2002/CS229-Project/preprocess"
 
-def load_questions(root_dir: str) -> Tuple[list, list]:
+def load_questions(root_dir: str, rand=True) -> Tuple[list, list]:
     """
     Load random questions for video and audio captioning
     """
@@ -26,16 +28,20 @@ def load_questions(root_dir: str) -> Tuple[list, list]:
     with open(os.path.join(root_dir, 'alignment_questions_video.txt')) as f:
         for line in f:
             video_questions.append(line.strip())
+    if not rand:
+        video_questions = video_questions[:1]
     
     audio_questions = []
     with open(os.path.join(root_dir, 'alignment_questions_audio.txt')) as f:
         for line in f:
             audio_questions.append(line.strip())
+    if not rand:
+        audio_questions = audio_questions[:1]
     
     return video_questions, audio_questions
 
 
-def preprocess_MMTrail_metadata(dataset_root_dir: str):
+def preprocess_MMTrail_metadata(dataset_root_dir: str, rand=True):
     """
     Preprocess MMTrail metadata files and store processed metadata in json format
     """
@@ -49,7 +55,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
     # │   ├── metas_video_convs.json
     # │   ├── metas_audio_convs.jspn
     
-    video_questions, audio_questions = load_questions(QUESTIONS_DIR)
+    video_questions, audio_questions = load_questions(QUESTIONS_DIR, rand)
     
     def preprocess(meta: dict) -> Optional[Tuple[dict]]:
         """
@@ -111,16 +117,20 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
         except Exception as e:
             print(f'Error processing metadata: {meta["video_id"]}')
             print(e)
-            return None, None
+            return None, None, None
         
     
     # process each split
     for split in ['train', 'val', 'test']:
         split_dir = os.path.join(dataset_root_dir, split)
         metas_dir = os.path.join(split_dir, 'metas')
-        metas_processed_video_fp = os.path.join(split_dir, 'metas_video_convs.json')
-        metas_processed_audio_fp = os.path.join(split_dir, 'metas_audio_convs.json')
-        metas_processed_video_audio_fp = os.path.join(split_dir, 'metas_video_audio_convs.json')
+        
+        # output file paths
+        no_random_suffix = '_no_random' if not rand else ''
+        metas_processed_video_fp = os.path.join(split_dir, f'metas_video_convs_{no_random_suffix}.json')
+        metas_processed_audio_fp = os.path.join(split_dir, f'metas_audio_convs_{no_random_suffix}.json')
+        metas_processed_video_audio_fp = os.path.join(split_dir, f'metas_video_audio_convs_{no_random_suffix}.json')
+        
         if not os.path.exists(metas_dir):
             print(f'No metadata found for [{split}] split.')
             continue
@@ -143,7 +153,7 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
             if meta_processed_video_audio is not None:
                 metas_processed_video_audio_list.append(meta_processed_video_audio)
                 
-        # save processed metadata
+        # save processed metadata to output files
         with open(metas_processed_video_fp, 'w') as f:
             json.dump(metas_processed_video_list, f, indent=4)
         with open(metas_processed_audio_fp, 'w') as f:
@@ -155,4 +165,4 @@ def preprocess_MMTrail_metadata(dataset_root_dir: str):
     
     
 if __name__ == '__main__':
-    preprocess_MMTrail_metadata(MMTRAIL_DIR)
+    preprocess_MMTrail_metadata(MMTRAIL_DIR, False)
