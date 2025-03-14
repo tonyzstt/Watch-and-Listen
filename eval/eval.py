@@ -2,9 +2,9 @@ import json
 import os
 import nltk
 import bert_score
+from tqdm import tqdm
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from sentence_transformers import SentenceTransformer, util
-
 
 def compute_bleu_score(reference_summary, candidate_summary):
 
@@ -37,9 +37,9 @@ def compute_bert_score(reference_summary, candidate_summary, lang='en'):
     references = [reference_summary]
     candidates = [candidate_summary]
     
-    _, _, F1 = bert_score.score(candidates, references, lang=lang, verbose=True)
+    precision, recall, F1 = bert_score.score(candidates, references, lang=lang, verbose=True)
     
-    return F1.item()
+    return precision.item(), recall.item(), F1.item()
 
 
 def load_metadata_for_video(metadata_folder, video_filename):
@@ -67,20 +67,22 @@ def evaluate_titles(metadata_file, output_file):
 
     results = {}
 
-    for video_filename, generated_title in generated_titles.items():
+    for video_filename, generated_title in tqdm(generated_titles.items()):
         reference_title = load_metadata_for_video(metadata_folder, video_filename)
 
         if reference_title:
             bleu_score = compute_bleu_score(reference_title, generated_title)
             similarity_score = compute_similarity(reference_title, generated_title)
-            bert_score = compute_bert_score(reference_title, generated_title)
+            precision, recall, f1 = compute_bert_score(reference_title, generated_title)
 
             results[video_filename] = {
                 "reference_title": reference_title,
                 "generated_title": generated_title,
                 "bleu_score": bleu_score,
                 "similarity_score": similarity_score,
-                "bert_score": bert_score
+                "precision": precision,
+                "recall": recall,
+                "f1": f1
             }
         else:
             results[video_filename] = {
@@ -88,6 +90,9 @@ def evaluate_titles(metadata_file, output_file):
                 "generated_title": generated_title,
                 "bleu_score": None,
                 "similarity_score": None,
+                "precision": None,
+                "recall": None,
+                "f1": None,
                 "error": "Metadata file not found"
             }
     return results
