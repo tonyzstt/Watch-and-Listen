@@ -118,13 +118,6 @@ def preprocess_multimodal(
                 ).strip()
                 sentence['value'] = DEFAULT_AUDIO_TOKEN * AUDIO_TOKEN_NUM + sentence['value']
                 sentence['value'] = sentence['value'].strip()
-
-            # TODO: conversation
-            # if "mmtag" in conversation_lib.default_conversation.version:
-            #     sentence['value'] = sentence['value'].replace(
-            #         DEFAULT_IMAGE_TOKEN,
-            #         '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>'
-            #     )
             
             IMAGE_TOKEN_NUM = sentence['value'].count(DEFAULT_IMAGE_TOKEN)
             if IMAGE_TOKEN_NUM > MAX_IMAGE_LENGTH:
@@ -138,13 +131,9 @@ def preprocess_multimodal(
         vid_replace_token = DEFAULT_IMAGE_TOKEN * image_token_num
         aud_replace_token = DEFAULT_AUDIO_TOKEN * audio_token_num
 
-        # TODO: fix this
-        # if data_args.mm_use_im_start_end:
-        # We need the start video and start audio special tokens
-        if True:
-            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
-            vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_VID_END_TOKEN
-            aud_replace_token = DEFAULT_AUDIO_START_TOKEN + aud_replace_token + DEFAULT_AUDIO_END_TOKEN
+        replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+        vid_replace_token = DEFAULT_VID_START_TOKEN + vid_replace_token + DEFAULT_VID_END_TOKEN
+        aud_replace_token = DEFAULT_AUDIO_START_TOKEN + aud_replace_token + DEFAULT_AUDIO_END_TOKEN
 
         sentence["value"] = sentence["value"].replace(
             DEFAULT_IMAGE_TOKEN, replace_token + '\n'
@@ -234,7 +223,7 @@ def preprocess(
             parts[0] += sep
 
             # "-2" is hardcoded for the Llama tokenizer to make the offset correct.
-            # Here we use -4/-8 since we have both image and audio, we also need to mask vid/aud start/end
+            # Here we use -4/-6 since we have both image and audio, we also need to mask vid/aud start/end
             if has_image and has_audio:
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 6
             elif has_image or has_audio:
@@ -464,7 +453,7 @@ class LazySupervisedDataset(Dataset):
 
         if self.data_args.has_image:
             # TODO: Sample fixed number of images, or consider padding
-            data_dict['images'] = images[:5]
+            data_dict['images'] = images
         if self.data_args.has_audio:
             data_dict['audio'] = audio
             

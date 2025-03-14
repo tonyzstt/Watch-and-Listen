@@ -390,7 +390,7 @@ class MultiModalLlama(nn.Module):
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)  
                 midfix_embeds = self.llama.get_input_embeddings()(midfix_id)  
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)  
-                # -1 for we remove the image and audio token place holder
+                # -2 for we remove the image and audio token place holder
                 new_target_mask_len = target_masked_len - 2 + audio_embed.shape[0] + visual_embed.shape[0]
                 input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)
                 pad_embds = torch.zeros((self.tokenizer.model_max_length - input_embds.shape[0], input_embds.shape[-1])).cuda().to(torch.float16)
@@ -448,15 +448,7 @@ class MultiModalLlama(nn.Module):
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
                 
-                input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)
-                
-                if input_embds.shape[0] < self.tokenizer.model_max_length:
-                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
-                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
-                                            device=input_embds.device,
-                                            dtype=input_embds.dtype)
-                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                    
+                input_embds = torch.cat([prefix_embeds, visual_embed, suffix_embeds], dim=0)            
                 embeddings.append(input_embds)
         
         elif images is None:
@@ -475,15 +467,7 @@ class MultiModalLlama(nn.Module):
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
                 
-                input_embds = torch.cat([prefix_embeds, audio_embed, suffix_embeds], dim=0)
-                
-                if input_embds.shape[0] < self.tokenizer.model_max_length:
-                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
-                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
-                                            device=input_embds.device,
-                                            dtype=input_embds.dtype)
-                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                    
+                input_embds = torch.cat([prefix_embeds, audio_embed, suffix_embeds], dim=0)  
                 embeddings.append(input_embds)
         
         else:
@@ -519,25 +503,14 @@ class MultiModalLlama(nn.Module):
                 prefix_embeds = self.llama.get_input_embeddings()(prefix_id)
                 midfix_embeds = self.llama.get_input_embeddings()(midfix_id)
                 suffix_embeds = self.llama.get_input_embeddings()(suffix_id)
-                
-                input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)
-                
-                if input_embds.shape[0] < self.tokenizer.model_max_length:
-                    pad_length = self.tokenizer.model_max_length - input_embds.shape[0]
-                    pad_embds = torch.zeros((pad_length, input_embds.shape[-1]),
-                                            device=input_embds.device,
-                                            dtype=input_embds.dtype)
-                    input_embds = torch.cat([input_embds, pad_embds], dim=0)
-                    
+    
+                input_embds = torch.cat([prefix_embeds, visual_embed, midfix_embeds, audio_embed, suffix_embeds], dim=0)           
                 embeddings.append(input_embds)
         
         embeddings = torch.stack(embeddings, dim=0)
-        attention_mask = (embeddings.abs().sum(dim=-1) != 0).long()
-
+        
         outputs = self.llama.generate(
-            inputs_embeds=embeddings,
-            attention_mask=attention_mask,
-            **generate_kwargs
+            inputs_embeds=embeddings, max_new_tokens=200
         )
         
         return outputs
@@ -640,8 +613,6 @@ if __name__ == "__main__":
         # Stage 3 of training
         model.update_vision_layer(model_args.pretrain_path)
         model.update_audio_layer(model_args.pretrain_path)
-        model.freeze_vision_projection_layers()
-        model.freeze_audio_projection_layers()
         training_args_stage3 = TrainingArguments(
             output_dir=training_args.model_save_path,
             per_device_train_batch_size=training_args.batch_size,
@@ -666,4 +637,6 @@ if __name__ == "__main__":
         print("=== Stage 3: Fine-Tuning LLaMA Only (Projection Layers Frozen) ===")
         trainer_stage3.train()
         model.save_lora_parameters(training_args.model_save_path)
+        model.save_audio_layer(training_args.model_save_path)
+        model.save_vision_layer(training_args.model_save_path)
         
