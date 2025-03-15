@@ -1,5 +1,6 @@
 import os
 import json
+import yaml
 import copy
 import torch
 import soundfile as sf
@@ -49,6 +50,8 @@ class DataArguments:
     has_audio: bool = field(default=False)
     image_aspect_ratio: str = field(default=None, metadata={"help": "Aspect ratio of the image."})
     mm_use_im_start_end: bool = field(default=False)
+    use_lg_prompt: bool = field(default=False)
+    lg_prompt_file_path: str = field(default=None, metadata={"help": "Path to the language guidance prompt file."})
 
 
 @dataclass
@@ -153,10 +156,12 @@ def preprocess(
     source: List[Dict[str, str]],
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False,
-    has_audio: bool = False
+    has_audio: bool = False,
+    lg_prompt: str = ''
 ) -> Dict:
-    # FIXME: Implement get_conversation_template
     conv = get_conv_template(CONV_TEMPLATE_NAME)
+    conv.system_message = lg_prompt + conv.system_message   # Add language guidance prompt to system message
+    
     roles = {"human": conv.roles[0], "assistant": conv.roles[1]}
     
     # Apply prompt templates
@@ -228,8 +233,6 @@ def preprocess(
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 6
             elif has_image or has_audio:
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 4
-
-
 
             if i != 0 and not tokenizer.legacy:
                 # The legacy and non-legacy modes handle special tokens differently
@@ -333,7 +336,8 @@ class LazySupervisedDataset(Dataset):
                  tokenizer: transformers.PreTrainedTokenizer,
                  image_processor: Optional[BaseProcessor],
                  audio_processor: Optional[nn.Module],
-                 data_args: DataArguments):
+                 data_args: DataArguments, 
+                 lg_prompt_kind: str = "default"):
         super(LazySupervisedDataset, self).__init__()
         
         print("Formatting inputs...Skip in lazy mode")
@@ -350,6 +354,20 @@ class LazySupervisedDataset(Dataset):
         if self.data_args.has_audio:
             assert self.audio_processor is not None, "Audio processor not found"
         # self.cached_data_dict = {}
+        
+        # Load language guidance prompt (user input prefix)
+        if self.data_args.use_lg_prompt:
+            assert self.data_args.lg_prompt_file_path is not None, "Language guidance prompt file not specified"
+            assert os.path.exists(self.data_args.lg_prompt_file_path), "Language guidance prompt file not found"
+            prompt_list = yaml.safe_load(open(self.data_args.lg_prompt_file_path, 'r'))
+            if lg_prompt_kind == "default":
+                self.lg_prompt = prompt_list['lg_prompt_video_caption']
+            else:
+                assert lg_prompt_kind in prompt_list, f"Language guidance prompt kind {lg_prompt_kind} not found"
+                self.lg_prompt = prompt_list[lg_prompt_kind]
+        else:
+            self.lg_prompt = ''
+        self.lg_prompt = "\n".join(self.lg_prompt)
         
     def __len__(self):
         return len(self.raw_data)
@@ -448,7 +466,8 @@ class LazySupervisedDataset(Dataset):
             sources,
             self.tokenizer,
             has_image=self.data_args.has_image,
-            has_audio=self.data_args.has_audio
+            has_audio=self.data_args.has_audio,
+            lg_prompt=self.lg_prompt
         )
 
         if self.data_args.has_image:
@@ -490,7 +509,8 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN, DEFAULT_AUDIO_START_TOKEN, DEFAULT_AUDIO_END_TOKEN], special_tokens=True)
     image_processor = ImageEvalProcessor()
-    audio_processor = MERTEncoder()
+    # audio_processor = MERTEncoder()
+    audio_processor = None
     dataset = get_dataset(data_args, tokenizer, image_processor, audio_processor)
     
     data_0 = dataset[5]
