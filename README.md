@@ -16,4 +16,5 @@ features for end-to-end optimization
 
 ### Running Our Code
 - Checkout the `preprocess` folder for data preparation code.
-- Checkout the `src/scripts` folder for training and evaluation scripts.
+- Checkout the `src/scripts` folder for training and inference scripts.
+- Check out the `eval` folder for the evaluation code.
