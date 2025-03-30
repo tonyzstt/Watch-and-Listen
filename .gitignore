@@ -3,6 +3,7 @@
 data/train
 data/test
 toymodel/ckpts
+.DS_Store
 
 *.zip
 
